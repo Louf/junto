@@ -1,0 +1,2 @@
+-- Optional seed data for local dev. Loaded by `supabase db reset`.
+-- Empty by default.

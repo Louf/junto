@@ -1,0 +1,81 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { supabaseService } from "@/lib/supabase/service";
+import { newToken } from "@/lib/ids";
+import { sendSignupConfirmation } from "@/lib/email";
+import { appUrl } from "@/lib/env";
+
+const schema = z.object({
+  job_id: z.string().uuid(),
+  name: z.string().min(1).max(120),
+  email: z.string().email(),
+  note: z.string().max(500).optional().nullable(),
+});
+
+export type SignupState =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export async function claimSlot(
+  _prev: SignupState | null,
+  formData: FormData,
+): Promise<SignupState> {
+  const raw = {
+    job_id: String(formData.get("job_id") ?? ""),
+    name: String(formData.get("name") ?? "").trim(),
+    email: String(formData.get("email") ?? "").trim().toLowerCase(),
+    note: String(formData.get("note") ?? "").trim() || null,
+  };
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  }
+  const supa = supabaseService();
+
+  // Capacity check + event lookup.
+  const { data: job, error: jobErr } = await supa
+    .from("jobs")
+    .select("*, event:events(slug, name), signups:signups(id)")
+    .eq("id", parsed.data.job_id)
+    .maybeSingle();
+  if (jobErr || !job) return { ok: false, error: "Job not found" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const j = job as any;
+  if ((j.signups?.length ?? 0) >= j.capacity) {
+    return { ok: false, error: "This job is already full" };
+  }
+
+  const cancel_token = newToken();
+  const { error: insErr } = await supa.from("signups").insert({
+    job_id: parsed.data.job_id,
+    name: parsed.data.name,
+    email: parsed.data.email,
+    note: parsed.data.note,
+    cancel_token,
+  });
+  if (insErr) {
+    if (insErr.code === "23505") {
+      return { ok: false, error: "You've already signed up for this job" };
+    }
+    return { ok: false, error: insErr.message };
+  }
+
+  const slug = j.event.slug;
+  const shareUrl = `${appUrl()}/e/${slug}`;
+  const cancelUrl = `${appUrl()}/cancel/${cancel_token}`;
+
+  sendSignupConfirmation({
+    to: parsed.data.email,
+    participantName: parsed.data.name,
+    eventName: j.event.name,
+    jobTitle: j.title,
+    shareUrl,
+    cancelUrl,
+  }).catch((e) => console.error("signup email failed", e));
+
+  revalidatePath(`/e/${slug}`);
+  return { ok: true };
+}

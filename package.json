@@ -6,12 +6,31 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "db:start": "supabase start",
+    "db:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "db:diff": "supabase db diff -f",
+    "db:push": "supabase db push",
+    "db:types": "supabase --experimental gen types typescript --linked --schema public 2>/dev/null > src/lib/supabase/database.types.ts",
+    "db:link": "supabase link"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.4.0",
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.108.2",
+    "date-fns": "^4.4.0",
+    "date-fns-tz": "^3.2.0",
+    "framer-motion": "^12.40.0",
+    "nanoid": "^5.1.11",
     "next": "16.2.9",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-hook-form": "^7.79.0",
+    "resend": "^6.12.4",
+    "vaul": "^1.1.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

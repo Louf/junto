@@ -1,36 +1,83 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Junto
 
-## Getting Started
+A focused, mobile-first signup app — create an event, define jobs with slots, share one link.
 
-First, run the development server:
+## Stack
+
+- Next.js 16 (App Router, React 19) + TypeScript
+- Tailwind CSS v4
+- Supabase (Postgres + Auth + Storage) — managed via Supabase CLI
+- Resend (transactional email)
+- Framer Motion (springs) + Vaul (bottom sheets)
+
+## Routes
+
+- `/` — landing
+- `/create` — create an event (no account needed)
+- `/recover` — magic-link sign-in
+- `/me` — your events (after signing in)
+- `/e/[slug]` — public event page; participants claim slots here
+- `/manage/[editToken]` — creator view; edit event, add/remove jobs, manage roster
+- `/cancel/[cancelToken]` — participant cancels a slot
+- `/auth/callback` — Supabase magic-link handler
+
+## Local setup — option A: full local stack (recommended)
+
+Needs Docker Desktop running.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+# 1. start the local Supabase stack (Postgres, Auth, Storage, Studio)
+pnpm db:start
+
+# 2. apply the migration (also runs on every reset)
+pnpm db:reset
+
+# 3. copy the API/URL output by db:start into .env.local
+#    (the local anon + service_role keys are printed by `db:start`)
+
+# 4. run Next.js
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Local Supabase Studio: http://localhost:54323.
+Local Inbucket (catches outbound auth emails for testing): http://localhost:54324.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Local setup — option B: cloud Supabase project
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# 1. one-time: sign in to Supabase
+supabase login
 
-## Learn More
+# 2. link this repo to a cloud project (create one first at supabase.com/dashboard)
+pnpm db:link --project-ref <your-project-ref>
 
-To learn more about Next.js, take a look at the following resources:
+# 3. push the migration up
+pnpm db:push
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# 4. fill .env.local with the cloud project's URL + anon/service_role keys
+# 5. run Next.js
+pnpm dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Env vars
 
-## Deploy on Vercel
+Copy `.env.example` to `.env.local` and set:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY`
+- `RESEND_API_KEY` / `RESEND_FROM` (use `onboarding@resend.dev` for dev sandbox)
+- `NEXT_PUBLIC_APP_URL` (`http://localhost:3000` for dev)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Day-to-day commands
+
+```bash
+pnpm dev            # Next.js dev server
+pnpm typecheck      # TypeScript
+pnpm lint           # ESLint
+pnpm build          # Production build
+
+pnpm db:start       # Boot local Supabase (Docker)
+pnpm db:reset       # Drop + re-apply all migrations + seed
+pnpm db:diff <name> # Create a new migration from local DB changes
+pnpm db:push        # Push migrations to the linked cloud project
+pnpm db:types       # Regenerate TypeScript types from the local schema
+```

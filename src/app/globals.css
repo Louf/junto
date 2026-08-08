@@ -5,21 +5,21 @@
   --foreground: #0a0a0b;
   --card: #ffffff;
   --muted: #8a8a91;
-  --border: rgba(0, 0, 0, 0.06);
-  --accent: #111111;
+  --border: #e5e5e5;
+  --accent: #111113;
   --accent-fg: #ffffff;
   --success: #22c55e;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #050507;
-    --foreground: #f4f4f6;
-    --card: #111115;
-    --muted: #8e8e95;
-    --border: rgba(255, 255, 255, 0.08);
-    --accent: #ffffff;
-    --accent-fg: #0a0a0b;
+    --background: #09090b;
+    --foreground: #ededed;
+    --card: #111113;
+    --muted: #9a9aaa;
+    --border: #1f1f23;
+    --accent: #ededed;
+    --accent-fg: #09090b;
     --success: #34d399;
   }
 }
@@ -33,9 +33,7 @@
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
   --color-success: var(--success);
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
-    "Segoe UI", system-ui, sans-serif;
+  --font-sans: var(--font-inter), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
 }
 
 html,
@@ -44,17 +42,26 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
 body {
   font-feature-settings: "ss01", "cv11";
+  font-variant-ligatures: common-ligatures;
+  letter-spacing: -0.01em;
 }
 
 button,
 [role="button"],
 a {
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Demo-matched typography helpers */
+h1, h2, h3 {
+  letter-spacing: -0.03em;
+  font-weight: 600;
 }
 
 /* Form element baseline */

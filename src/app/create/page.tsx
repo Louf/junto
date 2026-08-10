@@ -3,14 +3,14 @@ import { CreateForm } from "./CreateForm";
 
 export default function CreatePage() {
   return (
-    <main className="mx-auto w-full max-w-md px-6 pt-8 pb-14">
+    <main className="mx-auto w-full max-w-4xl px-6 pt-8 pb-14">
       <Link
         href="/"
         className="inline-flex items-center gap-1 text-[15px] text-muted active:opacity-60"
       >
         ← Back
       </Link>
-      <h1 className="mt-4 text-[32px] font-semibold leading-tight tracking-tight">
+      <h1 className="mt-4 text-[32px] font-semibold leading-tight tracking-[-0.015em]">
         New event
       </h1>
       <p className="mt-1 text-[15px] text-muted">

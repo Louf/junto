@@ -6,9 +6,11 @@
   --card: #ffffff;
   --muted: #8a8a91;
   --border: #e5e5e5;
-  --accent: #111113;
+  --accent: #1d9e75;
   --accent-fg: #ffffff;
-  --success: #22c55e;
+  --logo-accent: #1d9e75;
+  --logo-dot: #bcbcc4;
+  --success: #639922;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -18,9 +20,11 @@
     --card: #111113;
     --muted: #9a9aaa;
     --border: #1f1f23;
-    --accent: #ededed;
-    --accent-fg: #09090b;
-    --success: #34d399;
+    --accent: #35c294;
+    --accent-fg: #04211a;
+    --logo-accent: #43cfa1;
+    --logo-dot: #45454e;
+    --success: #97c459;
   }
 }
 
@@ -32,8 +36,10 @@
   --color-border: var(--border);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
+  --color-logo-accent: var(--logo-accent);
+  --color-logo-dot: var(--logo-dot);
   --color-success: var(--success);
-  --font-sans: var(--font-inter), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  --font-sans: var(--font-dm-sans), "DM Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
 }
 
 html,
@@ -47,9 +53,8 @@ body {
 }
 
 body {
-  font-feature-settings: "ss01", "cv11";
   font-variant-ligatures: common-ligatures;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.005em;
 }
 
 button,
@@ -60,7 +65,7 @@ a {
 
 /* Demo-matched typography helpers */
 h1, h2, h3 {
-  letter-spacing: -0.03em;
+  letter-spacing: -0.015em;
   font-weight: 600;
 }
 

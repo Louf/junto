@@ -3,14 +3,7 @@
 import { useState, useTransition } from "react";
 import { format } from "date-fns";
 import { updateEvent } from "./actions";
-
-function toLocalInputValue(iso: string) {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours(),
-  )}:${pad(d.getMinutes())}`;
-}
+import { DateTimePicker } from "@/components/DateTimePicker";
 
 export function EditEventCard({
   token,
@@ -28,11 +21,18 @@ export function EditEventCard({
   const [editing, setEditing] = useState(false);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [eventAt, setEventAt] = useState<Date>(new Date(initial.event_at));
+
+  function startEditing() {
+    setEventAt(new Date(initial.event_at));
+    setEditing(true);
+  }
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
     const fd = new FormData(e.currentTarget);
+    fd.set("event_at", eventAt.toISOString());
     start(async () => {
       const res = await updateEvent(token, fd);
       if (res.ok) setEditing(false);
@@ -67,7 +67,7 @@ export function EditEventCard({
             )}
           </div>
           <button
-            onClick={() => setEditing(true)}
+            onClick={startEditing}
             className="shrink-0 text-[13px] text-muted hover:text-foreground"
           >
             Edit
@@ -104,13 +104,7 @@ export function EditEventCard({
       </label>
       <label className="flex flex-col gap-2">
         <span className="text-sm font-medium">Date &amp; time</span>
-        <input
-          name="event_at"
-          type="datetime-local"
-          required
-          defaultValue={toLocalInputValue(initial.event_at)}
-          className="w-full rounded-xl bg-foreground/[0.05] px-4 py-3 text-[16px] outline-none"
-        />
+        <DateTimePicker value={eventAt} onChange={setEventAt} />
       </label>
       <label className="flex flex-col gap-2">
         <span className="text-sm font-medium">

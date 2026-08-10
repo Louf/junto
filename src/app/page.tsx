@@ -9,9 +9,9 @@ export default function Home() {
       <div className="flex flex-1 flex-col gap-12 lg:flex-row lg:items-center lg:gap-16 xl:gap-20">
         {/* LEFT — pitch */}
         <div className="flex w-full max-w-md flex-col">
-          <div className="inline-flex items-center gap-2.5">
-            <JuntoMark size={22} label={null} />
-            <span className="text-[15px] font-semibold tracking-[-0.01em]">
+          <div className="inline-flex items-center gap-3">
+            <JuntoMark size={36} label={null} animate />
+            <span className="text-[20px] font-semibold tracking-[-0.015em]">
               Junto
             </span>
           </div>

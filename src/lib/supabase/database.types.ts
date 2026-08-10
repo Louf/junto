@@ -14,6 +14,88 @@ export type Database = {
   }
   public: {
     Tables: {
+      contributions: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          fund_id: string
+          id: string
+          name: string
+          status: string
+        }
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          fund_id: string
+          id?: string
+          name: string
+          status?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          fund_id?: string
+          id?: string
+          name?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contributions_fund_id_fkey"
+            columns: ["fund_id"]
+            isOneToOne: false
+            referencedRelation: "funds"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funds: {
+        Row: {
+          created_at: string
+          event_id: string
+          handle: string
+          id: string
+          method: string
+          mode: string
+          note: string | null
+          payer_name: string
+          share_cents: number | null
+          total_cents: number | null
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          handle: string
+          id?: string
+          method: string
+          mode?: string
+          note?: string | null
+          payer_name: string
+          share_cents?: number | null
+          total_cents?: number | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          handle?: string
+          id?: string
+          method?: string
+          mode?: string
+          note?: string | null
+          payer_name?: string
+          share_cents?: number | null
+          total_cents?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funds_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           banner_path: string | null

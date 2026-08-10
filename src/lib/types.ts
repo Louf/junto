@@ -31,5 +31,35 @@ export type SignupRow = {
   cancel_token: string;
 };
 
+export type FundRow = {
+  id: string;
+  created_at: string;
+  event_id: string;
+  mode: "reimburse" | "goal" | "split";
+  payer_name: string;
+  /** Null until the organizer knows what was actually spent. */
+  total_cents: number | null;
+  share_cents: number | null;
+  method: "venmo" | "cashapp" | "paypal" | "zelle";
+  handle: string;
+  note: string | null;
+};
+
+export type ContributionRow = {
+  id: string;
+  created_at: string;
+  fund_id: string;
+  name: string;
+  amount_cents: number;
+  status: "pledged" | "confirmed";
+};
+
+export type FundWithContributions = FundRow & {
+  contributions: ContributionRow[];
+};
+
 export type JobWithSignups = JobRow & { signups: SignupRow[] };
-export type EventWithJobs = EventRow & { jobs: JobWithSignups[] };
+export type EventWithJobs = EventRow & {
+  jobs: JobWithSignups[];
+  fund: FundWithContributions | null;
+};

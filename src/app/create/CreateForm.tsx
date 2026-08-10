@@ -13,6 +13,15 @@ import { format } from "date-fns";
 import { createEvent, type CreateState } from "./actions";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { EventCardPreview } from "@/components/EventCardPreview";
+import { PaymentIcon } from "@/components/PaymentIcon";
+import {
+  METHOD_HINTS,
+  METHOD_LABELS,
+  METHOD_PLACEHOLDERS,
+  PAYMENT_METHODS,
+  normalizeHandle,
+  type PaymentMethod,
+} from "@/lib/payments";
 
 type JobDraft = {
   id: string;
@@ -41,6 +50,8 @@ export function CreateForm() {
   const [dateError, setDateError] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [showMobilePreview, setShowMobilePreview] = useState(false);
+  const [fundOn, setFundOn] = useState(false);
+  const [fundMethod, setFundMethod] = useState<PaymentMethod>("venmo");
   const [pending, startTransition] = useTransition();
   const [state, formAction] = useActionState<CreateState | null, FormData>(
     createEvent as unknown as (
@@ -463,6 +474,126 @@ export function CreateForm() {
 
         <Section
           step={3}
+          title="Chip in"
+          subtitle="Optional. If someone paid for supplies up front, Junto can help collect it back."
+        >
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
+            <input
+              type="checkbox"
+              checked={fundOn}
+              onChange={(e) => {
+                setDirty(true);
+                setFundOn(e.target.checked);
+              }}
+              className="size-4 accent-[var(--accent)]"
+            />
+            <span className="text-[15px]">Someone fronted the cost</span>
+          </label>
+
+          <AnimatePresence initial={false}>
+            {fundOn && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={panelTransition}
+                className="overflow-hidden"
+              >
+                <div className="flex flex-col gap-3 pt-1">
+                  <input type="hidden" name="fund_enabled" value="1" />
+
+                  <Field label="Who paid up front">
+                    <input
+                      name="fund_payer_name"
+                      required={fundOn}
+                      maxLength={120}
+                      placeholder="Dave"
+                      className={inputClass}
+                    />
+                  </Field>
+
+                  <fieldset className="flex flex-col gap-2">
+                    <legend className="mb-2 text-sm font-medium">Pay by</legend>
+                    <div className="flex flex-wrap gap-2">
+                      {PAYMENT_METHODS.map((m) => (
+                        <label
+                          key={m}
+                          className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-[14px] transition ${
+                            fundMethod === m
+                              ? "border-accent bg-accent/10 font-medium"
+                              : "border-border text-foreground/80"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="fund_method"
+                            value={m}
+                            checked={fundMethod === m}
+                            onChange={() => setFundMethod(m)}
+                            className="sr-only"
+                          />
+                          <PaymentIcon method={m} />
+                          {METHOD_LABELS[m]}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  <Field label={`${METHOD_LABELS[fundMethod]} handle`}>
+                    <input
+                      name="fund_handle"
+                      required={fundOn}
+                      maxLength={120}
+                      onBlur={(e) => {
+                        e.target.value = normalizeHandle(
+                          fundMethod,
+                          e.target.value,
+                        );
+                      }}
+                      placeholder={METHOD_PLACEHOLDERS[fundMethod]}
+                      className={inputClass}
+                    />
+                    <span className="text-[13px] text-muted">
+                      {METHOD_HINTS[fundMethod]}
+                    </span>
+                  </Field>
+
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <Field label="Total spent" optional>
+                        <input
+                          name="fund_total"
+                          inputMode="decimal"
+                          placeholder="120.00"
+                          className={inputClass}
+                        />
+                      </Field>
+                    </div>
+                    <div className="flex-1">
+                      <Field label="Each person owes" optional>
+                        <input
+                          name="fund_share"
+                          inputMode="decimal"
+                          placeholder="15.00"
+                          className={inputClass}
+                        />
+                      </Field>
+                    </div>
+                  </div>
+
+                  <p className="text-[13px] leading-[1.5] text-muted">
+                    Don&rsquo;t know the amounts yet? Leave them blank — you can
+                    add them from the manage page once you&rsquo;ve been
+                    shopping. Nobody sees a payment button until you do.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Section>
+
+        <Section
+          step={4}
           title="Your email"
           subtitle="We'll email you a link to manage this event. No account, no password."
         >

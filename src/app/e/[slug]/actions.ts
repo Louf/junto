@@ -79,3 +79,58 @@ export async function claimSlot(
   revalidatePath(`/e/${slug}`);
   return { ok: true };
 }
+
+// =====================
+// Fund contributions
+// =====================
+
+const pledgeSchema = z.object({
+  fund_id: z.string().uuid(),
+  name: z.string().min(1, "Add your name").max(120),
+  amount_cents: z.number().int().min(1).max(100_000_00),
+});
+
+export type PledgeState = { ok: true } | { ok: false; error: string };
+
+/**
+ * Records that someone says they sent money. Junto has no way to verify this —
+ * the organizer confirms it from the manage page once it lands.
+ */
+export async function pledgeContribution(
+  _prev: PledgeState | null,
+  formData: FormData,
+): Promise<PledgeState> {
+  const parsed = pledgeSchema.safeParse({
+    fund_id: String(formData.get("fund_id") ?? ""),
+    name: String(formData.get("name") ?? "").trim(),
+    amount_cents: Number(formData.get("amount_cents") ?? 0),
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    };
+  }
+
+  const supa = supabaseService();
+
+  const { data: fund, error: fundErr } = await supa
+    .from("funds")
+    .select("id, event:events(slug)")
+    .eq("id", parsed.data.fund_id)
+    .maybeSingle();
+  if (fundErr || !fund) return { ok: false, error: "Fund not found" };
+
+  const { error: insErr } = await supa.from("contributions").insert({
+    fund_id: parsed.data.fund_id,
+    name: parsed.data.name,
+    amount_cents: parsed.data.amount_cents,
+  });
+  if (insErr) return { ok: false, error: "Could not record that payment" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const slug = (fund as any).event?.slug as string | undefined;
+  if (slug) revalidatePath(`/e/${slug}`);
+
+  return { ok: true };
+}

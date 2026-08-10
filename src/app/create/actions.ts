@@ -6,6 +6,13 @@ import { supabaseService } from "@/lib/supabase/service";
 import { newSlug, newToken } from "@/lib/ids";
 import { sendCreatorWelcome } from "@/lib/email";
 import { appUrl } from "@/lib/env";
+import {
+  METHOD_LABELS,
+  isPaymentMethod,
+  isValidHandle,
+  normalizeHandle,
+  parseAmountToCents,
+} from "@/lib/payments";
 
 const jobSchema = z.object({
   title: z.string().min(1, "Job needs a title").max(120),
@@ -105,6 +112,58 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
   if (jobsErr) {
     await supa.from("events").delete().eq("id", event.id);
     return { ok: false, error: `Could not save jobs: ${jobsErr.message}` };
+  }
+
+  // Optional fund. Amounts may be blank — the organizer can add them later,
+  // and the public pay card stays hidden until they do.
+  if (String(formData.get("fund_enabled") ?? "") === "1") {
+    const method = String(formData.get("fund_method") ?? "");
+    if (!isPaymentMethod(method)) {
+      return { ok: false, error: "Pick a payment method for the fund" };
+    }
+
+    const handle = normalizeHandle(
+      method,
+      String(formData.get("fund_handle") ?? ""),
+    );
+    if (!isValidHandle(method, handle)) {
+      return {
+        ok: false,
+        error: `That doesn't look like a ${METHOD_LABELS[method]} handle`,
+      };
+    }
+
+    const payerName = String(formData.get("fund_payer_name") ?? "").trim();
+    if (!payerName) {
+      return { ok: false, error: "Who paid up front?" };
+    }
+
+    const totalRaw = String(formData.get("fund_total") ?? "").trim();
+    const shareRaw = String(formData.get("fund_share") ?? "").trim();
+    const total = totalRaw ? parseAmountToCents(totalRaw) : null;
+    const share = shareRaw ? parseAmountToCents(shareRaw) : null;
+    if (totalRaw && total === null) {
+      return { ok: false, error: "That total doesn't look like an amount" };
+    }
+    if (shareRaw && share === null) {
+      return { ok: false, error: "That share doesn't look like an amount" };
+    }
+    if (total !== null && share !== null && share > total) {
+      return { ok: false, error: "A share can't exceed the total" };
+    }
+
+    const { error: fundErr } = await supa.from("funds").insert({
+      event_id: event.id,
+      mode: "reimburse",
+      payer_name: payerName,
+      total_cents: total,
+      share_cents: share,
+      method,
+      handle,
+    });
+    // A failed fund shouldn't discard a valid event — the organizer can add it
+    // again from the manage page.
+    if (fundErr) console.error("fund insert failed", fundErr);
   }
 
   const shareUrl = `${appUrl()}/e/${slug}`;

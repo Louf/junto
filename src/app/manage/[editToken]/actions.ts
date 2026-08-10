@@ -4,6 +4,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseService } from "@/lib/supabase/service";
 import { newToken } from "@/lib/ids";
+import {
+  PAYMENT_METHODS,
+  METHOD_LABELS,
+  isPaymentMethod,
+  isValidHandle,
+  normalizeHandle,
+  parseAmountToCents,
+} from "@/lib/payments";
 
 async function eventForToken(token: string) {
   const supa = supabaseService();
@@ -146,6 +154,138 @@ export async function removeSignup(token: string, signupId: string) {
     return { ok: false, error: "Not found" } as const;
   }
   const { error } = await supa.from("signups").delete().eq("id", signupId);
+  if (error) return { ok: false, error: error.message } as const;
+  revalidatePath(`/manage/${token}`);
+  revalidatePath(`/e/${ev.slug}`);
+  return { ok: true } as const;
+}
+
+// =====================
+// Fund
+// =====================
+
+const fundSchema = z.object({
+  payer_name: z.string().min(1, "Who paid up front?").max(120),
+  // Nullable: the organizer may not have been shopping yet.
+  total_cents: z.number().int().min(1).nullable(),
+  share_cents: z.number().int().min(1).nullable(),
+  method: z.enum(PAYMENT_METHODS),
+  handle: z.string().min(1, "Add your payment handle"),
+  note: z.string().max(200).optional().nullable(),
+});
+
+export async function saveFund(token: string, formData: FormData) {
+  const ev = await eventForToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" } as const;
+
+  const method = String(formData.get("method") ?? "");
+  if (!isPaymentMethod(method)) {
+    return { ok: false, error: "Pick a payment method" } as const;
+  }
+
+  const handle = normalizeHandle(method, String(formData.get("handle") ?? ""));
+  if (!isValidHandle(method, handle)) {
+    return {
+      ok: false,
+      error: `That doesn't look like a ${METHOD_LABELS[method]} handle`,
+    } as const;
+  }
+
+  const totalRaw = String(formData.get("total") ?? "").trim();
+  const shareRaw = String(formData.get("share") ?? "").trim();
+  const total = totalRaw ? parseAmountToCents(totalRaw) : null;
+  const share = shareRaw ? parseAmountToCents(shareRaw) : null;
+  if (totalRaw && total === null) {
+    return { ok: false, error: "That total doesn't look like an amount" } as const;
+  }
+  if (shareRaw && share === null) {
+    return { ok: false, error: "That share doesn't look like an amount" } as const;
+  }
+  if (total !== null && share !== null && share > total) {
+    return { ok: false, error: "A share can't exceed the total" } as const;
+  }
+
+  const parsed = fundSchema.safeParse({
+    payer_name: String(formData.get("payer_name") ?? "").trim(),
+    total_cents: total,
+    share_cents: share,
+    method,
+    handle,
+    note: String(formData.get("note") ?? "").trim() || null,
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid input",
+    } as const;
+  }
+
+  const supa = supabaseService();
+  const { error } = await supa
+    .from("funds")
+    .upsert(
+      { event_id: ev.id, mode: "reimburse", ...parsed.data },
+      { onConflict: "event_id" },
+    );
+  if (error) return { ok: false, error: error.message } as const;
+
+  revalidatePath(`/manage/${token}`);
+  revalidatePath(`/e/${ev.slug}`);
+  return { ok: true } as const;
+}
+
+export async function removeFund(token: string) {
+  const ev = await eventForToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" } as const;
+  const supa = supabaseService();
+  const { error } = await supa.from("funds").delete().eq("event_id", ev.id);
+  if (error) return { ok: false, error: error.message } as const;
+  revalidatePath(`/manage/${token}`);
+  revalidatePath(`/e/${ev.slug}`);
+  return { ok: true } as const;
+}
+
+/** Verifies a contribution belongs to this event's fund before touching it. */
+async function contributionInEvent(contributionId: string, eventId: string) {
+  const supa = supabaseService();
+  const { data } = await supa
+    .from("contributions")
+    .select("id, fund:funds(event_id)")
+    .eq("id", contributionId)
+    .maybeSingle();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const c = data as any;
+  return c && c.fund?.event_id === eventId ? c : null;
+}
+
+export async function confirmContribution(token: string, contributionId: string) {
+  const ev = await eventForToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" } as const;
+  if (!(await contributionInEvent(contributionId, ev.id))) {
+    return { ok: false, error: "Not found" } as const;
+  }
+  const supa = supabaseService();
+  const { error } = await supa
+    .from("contributions")
+    .update({ status: "confirmed" })
+    .eq("id", contributionId);
+  if (error) return { ok: false, error: error.message } as const;
+  revalidatePath(`/manage/${token}`);
+  revalidatePath(`/e/${ev.slug}`);
+  return { ok: true } as const;
+}
+
+export async function removeContribution(token: string, contributionId: string) {
+  const ev = await eventForToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" } as const;
+  if (!(await contributionInEvent(contributionId, ev.id))) {
+    return { ok: false, error: "Not found" } as const;
+  }
+  const supa = supabaseService();
+  const { error } = await supa
+    .from("contributions")
+    .delete()
+    .eq("id", contributionId);
   if (error) return { ok: false, error: error.message } as const;
   revalidatePath(`/manage/${token}`);
   revalidatePath(`/e/${ev.slug}`);

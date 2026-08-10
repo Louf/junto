@@ -6,6 +6,7 @@ import { ShareCard } from "./ShareCard";
 import { AddJobForm } from "./AddJobForm";
 import { JobAdmin } from "./JobAdmin";
 import { EditEventCard } from "./EditEventCard";
+import { FundAdmin } from "./FundAdmin";
 
 export const revalidate = 0;
 
@@ -35,7 +36,8 @@ export default async function ManagePage({
 
       {welcome && (
         <div className="mt-4 rounded-2xl bg-success/15 text-success px-4 py-3 text-sm">
-          Your event is live. Bookmark this page — it&rsquo;s how you&rsquo;ll edit later.
+          Your event is live. Bookmark this page — it&rsquo;s how you&rsquo;ll
+          edit later, add jobs, and collect money if someone fronts the cost.
         </div>
       )}
 
@@ -54,6 +56,39 @@ export default async function ManagePage({
       <div className="mt-6">
         <ShareCard shareUrl={shareUrl} />
       </div>
+
+      <section className="mt-8">
+        <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
+          Chip in
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Optional. For when someone fronts the cost and needs paying back.
+        </p>
+        <div className="mt-3">
+          <FundAdmin
+            token={editToken}
+            suggestedShareCents={null}
+            fund={
+              ev.fund
+                ? {
+                    payerName: ev.fund.payer_name,
+                    totalCents: ev.fund.total_cents,
+                    shareCents: ev.fund.share_cents,
+                    method: ev.fund.method,
+                    handle: ev.fund.handle,
+                    note: ev.fund.note,
+                    contributions: ev.fund.contributions.map((c) => ({
+                      id: c.id,
+                      name: c.name,
+                      amountCents: c.amount_cents,
+                      confirmed: c.status === "confirmed",
+                    })),
+                  }
+                : null
+            }
+          />
+        </div>
+      </section>
 
       <section className="mt-8">
         <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">

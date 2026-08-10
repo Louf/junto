@@ -2,7 +2,10 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { getEventBySlug, bannerPublicUrl } from "@/lib/events";
+import { payUrl, payableInDesktopBrowser } from "@/lib/payments";
+import { qrSvg } from "@/lib/qr";
 import { JobCard } from "./JobCard";
+import { FundCard } from "./FundCard";
 
 export const revalidate = 0;
 
@@ -17,6 +20,21 @@ export default async function EventPage({
 
   const banner = bannerPublicUrl(ev.banner_path);
   const when = new Date(ev.event_at);
+
+  // Payment links and the QR are built server-side from a validated handle, so
+  // the pay button can only ever point at a known payment domain.
+  // A fund with no amounts yet is still being set up — hide it from payers
+  // rather than asking them to send an unknown sum.
+  const fund =
+    ev.fund && ev.fund.total_cents && ev.fund.share_cents
+      ? { ...ev.fund, total_cents: ev.fund.total_cents, share_cents: ev.fund.share_cents }
+      : null;
+  const payHref = fund
+    ? payUrl(fund.method, fund.handle, fund.share_cents, ev.name)
+    : null;
+  const qr = payHref ? await qrSvg(payHref) : null;
+  const repaidCents =
+    fund?.contributions.reduce((n, c) => n + c.amount_cents, 0) ?? 0;
 
   return (
     <main className="mx-auto w-full max-w-md pb-16">
@@ -46,6 +64,35 @@ export default async function EventPage({
           )}
         </div>
       </div>
+
+      {fund && (
+        <section className="mt-8 px-6">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
+            Chip in
+          </h2>
+          <div className="mt-3">
+            <FundCard
+              fundId={fund.id}
+              payerName={fund.payer_name}
+              method={fund.method}
+              handle={fund.handle}
+              totalCents={fund.total_cents}
+              shareCents={fund.share_cents}
+              repaidCents={repaidCents}
+              note={fund.note}
+              payHref={payHref}
+              qr={qr}
+              desktopBrowserWorks={payableInDesktopBrowser(fund.method)}
+              contributors={fund.contributions.map((c) => ({
+                id: c.id,
+                name: c.name,
+                amountCents: c.amount_cents,
+                confirmed: c.status === "confirmed",
+              }))}
+            />
+          </div>
+        </section>
+      )}
 
       <section className="mt-8 px-6">
         <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">

@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "icons": "node scripts/gen-payment-icons.mjs",
     "typecheck": "tsc --noEmit",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
@@ -25,6 +26,7 @@
     "framer-motion": "^12.40.0",
     "nanoid": "^5.1.11",
     "next": "16.2.9",
+    "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-day-picker": "^10.0.1",
     "react-dom": "19.2.4",
@@ -36,10 +38,12 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "simple-icons": "^13.0.0",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

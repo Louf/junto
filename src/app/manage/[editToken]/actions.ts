@@ -5,8 +5,11 @@ import { z } from "zod";
 import { supabaseService } from "@/lib/supabase/service";
 import { newToken } from "@/lib/ids";
 import {
+  FUND_MODES,
   PAYMENT_METHODS,
   METHOD_LABELS,
+  hasFixedShare,
+  isFundMode,
   isPaymentMethod,
   isValidHandle,
   normalizeHandle,
@@ -165,10 +168,12 @@ export async function removeSignup(token: string, signupId: string) {
 // =====================
 
 const fundSchema = z.object({
-  payer_name: z.string().min(1, "Who paid up front?").max(120),
-  // Nullable: the organizer may not have been shopping yet.
+  mode: z.enum(FUND_MODES),
+  recipient_name: z.string().min(1, "Who's collecting the money?").max(120),
+  // Nullable: the organizer may not know the figures yet.
   total_cents: z.number().int().min(1).nullable(),
   share_cents: z.number().int().min(1).nullable(),
+  headcount: z.number().int().min(1).nullable(),
   method: z.enum(PAYMENT_METHODS),
   handle: z.string().min(1, "Add your payment handle"),
   note: z.string().max(200).optional().nullable(),
@@ -191,24 +196,44 @@ export async function saveFund(token: string, formData: FormData) {
     } as const;
   }
 
+  const mode = String(formData.get("mode") ?? "reimburse");
+  if (!isFundMode(mode)) {
+    return { ok: false, error: "Pick how you're collecting" } as const;
+  }
+
   const totalRaw = String(formData.get("total") ?? "").trim();
   const shareRaw = String(formData.get("share") ?? "").trim();
-  const total = totalRaw ? parseAmountToCents(totalRaw) : null;
+  const headRaw = String(formData.get("headcount") ?? "").trim();
+  let total = totalRaw ? parseAmountToCents(totalRaw) : null;
   const share = shareRaw ? parseAmountToCents(shareRaw) : null;
+  const headcount = headRaw ? Number(headRaw) : null;
+
   if (totalRaw && total === null) {
     return { ok: false, error: "That total doesn't look like an amount" } as const;
   }
   if (shareRaw && share === null) {
     return { ok: false, error: "That share doesn't look like an amount" } as const;
   }
-  if (total !== null && share !== null && share > total) {
+  if (headRaw && (!Number.isInteger(headcount) || (headcount ?? 0) < 1)) {
+    return { ok: false, error: "How many people are splitting it?" } as const;
+  }
+
+  // Split mode derives its total from the share and the headcount, so the
+  // organizer only enters the two numbers they actually know.
+  if (mode === "split" && share !== null && headcount !== null) {
+    total = share * headcount;
+  }
+  if (hasFixedShare(mode) && total !== null && share !== null && share > total) {
     return { ok: false, error: "A share can't exceed the total" } as const;
   }
 
   const parsed = fundSchema.safeParse({
-    payer_name: String(formData.get("payer_name") ?? "").trim(),
+    mode,
+    recipient_name: String(formData.get("recipient_name") ?? "").trim(),
     total_cents: total,
-    share_cents: share,
+    // Only split fixes a per-person amount; elsewhere payers choose.
+    share_cents: hasFixedShare(mode) ? share : null,
+    headcount: mode === "split" ? headcount : null,
     method,
     handle,
     note: String(formData.get("note") ?? "").trim() || null,
@@ -224,7 +249,7 @@ export async function saveFund(token: string, formData: FormData) {
   const { error } = await supa
     .from("funds")
     .upsert(
-      { event_id: ev.id, mode: "reimburse", ...parsed.data },
+      { event_id: ev.id, ...parsed.data },
       { onConflict: "event_id" },
     );
   if (error) return { ok: false, error: error.message } as const;

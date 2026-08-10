@@ -36,10 +36,14 @@ export type FundRow = {
   created_at: string;
   event_id: string;
   mode: "reimburse" | "goal" | "split";
-  payer_name: string;
+  /** Whoever receives the money — the person who fronted it, or the organizer. */
+  recipient_name: string;
   /** Null until the organizer knows what was actually spent. */
   total_cents: number | null;
+  /** Fixed per-person amount. Null in goal mode, where payers choose. */
   share_cents: number | null;
+  /** Split mode only: how many people are dividing the cost. */
+  headcount: number | null;
   method: "venmo" | "cashapp" | "paypal" | "zelle";
   handle: string;
   note: string | null;
@@ -50,6 +54,8 @@ export type ContributionRow = {
   created_at: string;
   fund_id: string;
   name: string;
+  /** Optional — only way to reach a payer if the event is called off. */
+  email: string | null;
   amount_cents: number;
   status: "pledged" | "confirmed";
 };

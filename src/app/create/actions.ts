@@ -8,6 +8,8 @@ import { sendCreatorWelcome } from "@/lib/email";
 import { appUrl } from "@/lib/env";
 import {
   METHOD_LABELS,
+  hasFixedShare,
+  isFundMode,
   isPaymentMethod,
   isValidHandle,
   normalizeHandle,
@@ -133,31 +135,51 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
       };
     }
 
-    const payerName = String(formData.get("fund_payer_name") ?? "").trim();
-    if (!payerName) {
-      return { ok: false, error: "Who paid up front?" };
+    const mode = String(formData.get("fund_mode") ?? "reimburse");
+    if (!isFundMode(mode)) {
+      return { ok: false, error: "Pick how you're collecting" };
+    }
+
+    const recipientName = String(
+      formData.get("fund_recipient_name") ?? "",
+    ).trim();
+    if (!recipientName) {
+      return { ok: false, error: "Who's collecting the money?" };
     }
 
     const totalRaw = String(formData.get("fund_total") ?? "").trim();
     const shareRaw = String(formData.get("fund_share") ?? "").trim();
-    const total = totalRaw ? parseAmountToCents(totalRaw) : null;
+    const headRaw = String(formData.get("fund_headcount") ?? "").trim();
+    let total = totalRaw ? parseAmountToCents(totalRaw) : null;
     const share = shareRaw ? parseAmountToCents(shareRaw) : null;
+    const headcount = headRaw ? Number(headRaw) : null;
+
     if (totalRaw && total === null) {
       return { ok: false, error: "That total doesn't look like an amount" };
     }
     if (shareRaw && share === null) {
       return { ok: false, error: "That share doesn't look like an amount" };
     }
-    if (total !== null && share !== null && share > total) {
+    if (headRaw && (!Number.isInteger(headcount) || (headcount ?? 0) < 1)) {
+      return { ok: false, error: "How many people are splitting it?" };
+    }
+
+    // Split derives its total, so the organizer only enters the two numbers
+    // they actually know.
+    if (mode === "split" && share !== null && headcount !== null) {
+      total = share * headcount;
+    }
+    if (hasFixedShare(mode) && total !== null && share !== null && share > total) {
       return { ok: false, error: "A share can't exceed the total" };
     }
 
     const { error: fundErr } = await supa.from("funds").insert({
       event_id: event.id,
-      mode: "reimburse",
-      payer_name: payerName,
+      mode,
+      recipient_name: recipientName,
       total_cents: total,
-      share_cents: share,
+      share_cents: hasFixedShare(mode) ? share : null,
+      headcount: mode === "split" ? headcount : null,
       method,
       handle,
     });

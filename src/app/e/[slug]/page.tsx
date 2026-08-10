@@ -2,7 +2,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
 import { getEventBySlug, bannerPublicUrl } from "@/lib/events";
-import { payUrl, payableInDesktopBrowser } from "@/lib/payments";
+import {
+  GOAL_PRESETS,
+  formatCents,
+  hasFixedShare,
+  payProfileUrl,
+  payUrl,
+  payableInDesktopBrowser,
+} from "@/lib/payments";
 import { qrSvg } from "@/lib/qr";
 import { JobCard } from "./JobCard";
 import { FundCard } from "./FundCard";
@@ -21,19 +28,38 @@ export default async function EventPage({
   const banner = bannerPublicUrl(ev.banner_path);
   const when = new Date(ev.event_at);
 
-  // Payment links and the QR are built server-side from a validated handle, so
-  // the pay button can only ever point at a known payment domain.
-  // A fund with no amounts yet is still being set up — hide it from payers
-  // rather than asking them to send an unknown sum.
-  const fund =
-    ev.fund && ev.fund.total_cents && ev.fund.share_cents
-      ? { ...ev.fund, total_cents: ev.fund.total_cents, share_cents: ev.fund.share_cents }
-      : null;
-  const payHref = fund
-    ? payUrl(fund.method, fund.handle, fund.share_cents, ev.name)
-    : null;
-  const qr = payHref ? await qrSvg(payHref) : null;
-  const repaidCents =
+  // A fund without a target is still being set up — hide it from payers rather
+  // than asking them to send an unknown sum. Fixed modes also need a share.
+  const ready =
+    ev.fund &&
+    ev.fund.total_cents &&
+    (!hasFixedShare(ev.fund.mode) || ev.fund.share_cents);
+  const fund = ready && ev.fund ? { ...ev.fund, total_cents: ev.fund.total_cents! } : null;
+
+  // Payment links and QRs are built server-side from a validated handle, so a
+  // pay button can only ever point at a known payment domain. Split has one
+  // fixed option; the others get a preset each plus an open-ended one, because
+  // the payer chooses how much to send.
+  const payOptions = fund
+    ? await Promise.all(
+        (hasFixedShare(fund.mode)
+          ? [fund.share_cents]
+          : [...GOAL_PRESETS, null]
+        ).map(async (cents) => {
+          const href = cents
+            ? payUrl(fund.method, fund.handle, cents, ev.name)
+            : payProfileUrl(fund.method, fund.handle);
+          return {
+            cents: cents ?? null,
+            label: cents ? formatCents(cents) : "Other",
+            href,
+            qr: href ? await qrSvg(href) : null,
+          };
+        }),
+      )
+    : [];
+
+  const raisedCents =
     fund?.contributions.reduce((n, c) => n + c.amount_cents, 0) ?? 0;
 
   return (
@@ -73,15 +99,16 @@ export default async function EventPage({
           <div className="mt-3">
             <FundCard
               fundId={fund.id}
-              payerName={fund.payer_name}
+              mode={fund.mode}
+              recipientName={fund.recipient_name}
               method={fund.method}
               handle={fund.handle}
               totalCents={fund.total_cents}
               shareCents={fund.share_cents}
-              repaidCents={repaidCents}
+              headcount={fund.headcount}
+              raisedCents={raisedCents}
               note={fund.note}
-              payHref={payHref}
-              qr={qr}
+              payOptions={payOptions}
               desktopBrowserWorks={payableInDesktopBrowser(fund.method)}
               contributors={fund.contributions.map((c) => ({
                 id: c.id,

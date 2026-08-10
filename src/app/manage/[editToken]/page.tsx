@@ -37,7 +37,7 @@ export default async function ManagePage({
       {welcome && (
         <div className="mt-4 rounded-2xl bg-success/15 text-success px-4 py-3 text-sm">
           Your event is live. Bookmark this page — it&rsquo;s how you&rsquo;ll
-          edit later, add jobs, and collect money if someone fronts the cost.
+          edit later, add jobs, and collect money if the event needs any.
         </div>
       )}
 
@@ -62,24 +62,29 @@ export default async function ManagePage({
           Chip in
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Optional. For when someone fronts the cost and needs paying back.
+          Optional. Pay someone back, split a cost, or raise a total.
         </p>
         <div className="mt-3">
           <FundAdmin
             token={editToken}
-            suggestedShareCents={null}
+            suggestedHeadcount={
+              ev.jobs.reduce((n, j) => n + j.signups.length, 0) || null
+            }
             fund={
               ev.fund
                 ? {
-                    payerName: ev.fund.payer_name,
+                    mode: ev.fund.mode,
+                    recipientName: ev.fund.recipient_name,
                     totalCents: ev.fund.total_cents,
                     shareCents: ev.fund.share_cents,
+                    headcount: ev.fund.headcount,
                     method: ev.fund.method,
                     handle: ev.fund.handle,
                     note: ev.fund.note,
                     contributions: ev.fund.contributions.map((c) => ({
                       id: c.id,
                       name: c.name,
+                      email: c.email,
                       amountCents: c.amount_cents,
                       confirmed: c.status === "confirmed",
                     })),

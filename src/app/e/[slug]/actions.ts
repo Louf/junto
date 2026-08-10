@@ -87,7 +87,14 @@ export async function claimSlot(
 const pledgeSchema = z.object({
   fund_id: z.string().uuid(),
   name: z.string().min(1, "Add your name").max(120),
-  amount_cents: z.number().int().min(1).max(100_000_00),
+  // Optional, but the only way to reach this person if the event is called
+  // off after they've sent money.
+  email: z.string().email("That email doesn't look right").nullable(),
+  amount_cents: z
+    .number()
+    .int()
+    .min(1, "Add the amount you sent")
+    .max(100_000_00),
 });
 
 export type PledgeState = { ok: true } | { ok: false; error: string };
@@ -103,6 +110,7 @@ export async function pledgeContribution(
   const parsed = pledgeSchema.safeParse({
     fund_id: String(formData.get("fund_id") ?? ""),
     name: String(formData.get("name") ?? "").trim(),
+    email: String(formData.get("email") ?? "").trim().toLowerCase() || null,
     amount_cents: Number(formData.get("amount_cents") ?? 0),
   });
   if (!parsed.success) {
@@ -124,6 +132,7 @@ export async function pledgeContribution(
   const { error: insErr } = await supa.from("contributions").insert({
     fund_id: parsed.data.fund_id,
     name: parsed.data.name,
+    email: parsed.data.email,
     amount_cents: parsed.data.amount_cents,
   });
   if (insErr) return { ok: false, error: "Could not record that payment" };

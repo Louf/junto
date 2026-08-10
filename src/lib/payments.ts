@@ -10,6 +10,39 @@
 export const PAYMENT_METHODS = ["venmo", "cashapp", "paypal", "zelle"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
+export const FUND_MODES = ["reimburse", "split", "goal"] as const;
+export type FundMode = (typeof FUND_MODES)[number];
+
+export const MODE_LABELS: Record<FundMode, string> = {
+  reimburse: "Pay someone back",
+  split: "Split the cost",
+  goal: "Raise a total",
+};
+
+export const MODE_HINTS: Record<FundMode, string> = {
+  reimburse:
+    "Someone already spent the money. People chip in until it's recouped.",
+  split: "A fixed amount per person, divided evenly.",
+  goal: "A target to reach. People chip in whatever they can.",
+};
+
+export function isFundMode(value: string): value is FundMode {
+  return (FUND_MODES as readonly string[]).includes(value);
+}
+
+/**
+ * Whether everyone owes the same fixed amount.
+ *
+ * Only split does. Reimburse and goal both just need a total — recouping a
+ * cost doesn't care who contributes what, it cares whether the total is met.
+ */
+export function hasFixedShare(mode: FundMode): boolean {
+  return mode === "split";
+}
+
+/** Suggested chip-in amounts for goal mode, in cents. */
+export const GOAL_PRESETS = [1000, 2500, 5000] as const;
+
 export const METHOD_LABELS: Record<PaymentMethod, string> = {
   venmo: "Venmo",
   cashapp: "Cash App",
@@ -123,6 +156,26 @@ export function payUrl(
       return `https://cash.app/$${encodeURIComponent(handle)}/${amount}`;
     case "paypal":
       return `https://paypal.me/${encodeURIComponent(handle)}/${amount}`;
+    case "zelle":
+      return null;
+  }
+}
+
+/**
+ * Link to the recipient's profile with no amount attached, for when the payer
+ * is entering their own figure. All three apps accept a bare handle URL.
+ */
+export function payProfileUrl(
+  method: PaymentMethod,
+  handle: string,
+): string | null {
+  switch (method) {
+    case "venmo":
+      return `https://venmo.com/${encodeURIComponent(handle)}`;
+    case "cashapp":
+      return `https://cash.app/$${encodeURIComponent(handle)}`;
+    case "paypal":
+      return `https://paypal.me/${encodeURIComponent(handle)}`;
     case "zelle":
       return null;
   }

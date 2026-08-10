@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           amount_cents: number
           created_at: string
+          email: string | null
           fund_id: string
           id: string
           name: string
@@ -26,6 +27,7 @@ export type Database = {
         Insert: {
           amount_cents: number
           created_at?: string
+          email?: string | null
           fund_id: string
           id?: string
           name: string
@@ -34,6 +36,7 @@ export type Database = {
         Update: {
           amount_cents?: number
           created_at?: string
+          email?: string | null
           fund_id?: string
           id?: string
           name?: string
@@ -54,11 +57,12 @@ export type Database = {
           created_at: string
           event_id: string
           handle: string
+          headcount: number | null
           id: string
           method: string
           mode: string
           note: string | null
-          payer_name: string
+          recipient_name: string
           share_cents: number | null
           total_cents: number | null
         }
@@ -66,11 +70,12 @@ export type Database = {
           created_at?: string
           event_id: string
           handle: string
+          headcount?: number | null
           id?: string
           method: string
           mode?: string
           note?: string | null
-          payer_name: string
+          recipient_name: string
           share_cents?: number | null
           total_cents?: number | null
         }
@@ -78,11 +83,12 @@ export type Database = {
           created_at?: string
           event_id?: string
           handle?: string
+          headcount?: number | null
           id?: string
           method?: string
           mode?: string
           note?: string | null
-          payer_name?: string
+          recipient_name?: string
           share_cents?: number | null
           total_cents?: number | null
         }

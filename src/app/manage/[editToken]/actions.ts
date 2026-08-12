@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseService } from "@/lib/supabase/service";
 import { newToken } from "@/lib/ids";
+import { getEventByEditToken } from "@/lib/events";
+import { sendEventCancelled, type CancelRecipient } from "@/lib/email";
+import { appUrl } from "@/lib/env";
 import {
   FUND_MODES,
   PAYMENT_METHODS,
@@ -312,6 +315,85 @@ export async function removeContribution(token: string, contributionId: string) 
     .delete()
     .eq("id", contributionId);
   if (error) return { ok: false, error: error.message } as const;
+  revalidatePath(`/manage/${token}`);
+  revalidatePath(`/e/${ev.slug}`);
+  return { ok: true } as const;
+}
+
+// =====================
+// Cancellation
+// =====================
+
+/**
+ * Marks an event cancelled rather than deleting it. Anyone who already sent
+ * money needs the page to still resolve — a 404 tells them nothing and leaves
+ * them no way to find out what happened or who to ask.
+ */
+export async function cancelEvent(token: string, formData: FormData) {
+  const ev = await getEventByEditToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" } as const;
+
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 500) || null;
+  // Only notify on the transition into cancelled, so cancel → restore →
+  // cancel doesn't spam everyone twice.
+  const alreadyCancelled = Boolean(ev.cancelled_at);
+
+  const supa = supabaseService();
+  const { error } = await supa
+    .from("events")
+    .update({ cancelled_at: new Date().toISOString(), cancel_reason: reason })
+    .eq("id", ev.id);
+  if (error) return { ok: false, error: error.message } as const;
+
+  revalidatePath(`/manage/${token}`);
+  revalidatePath(`/e/${ev.slug}`);
+
+  if (alreadyCancelled) return { ok: true, sent: 0, failed: 0 } as const;
+
+  // One message per person, not per slot claimed. Anyone who both signed up
+  // and sent money gets the money version, since it carries more.
+  const byEmail = new Map<string, CancelRecipient>();
+  for (const job of ev.jobs) {
+    for (const s of job.signups) {
+      const key = s.email.toLowerCase();
+      if (!byEmail.has(key)) {
+        byEmail.set(key, { email: s.email, name: s.name, contributed: false });
+      }
+    }
+  }
+  for (const c of ev.fund?.contributions ?? []) {
+    if (!c.email) continue;
+    const key = c.email.toLowerCase();
+    const existing = byEmail.get(key);
+    if (existing) existing.contributed = true;
+    else byEmail.set(key, { email: c.email, name: c.name, contributed: true });
+  }
+
+  // Awaited rather than fire-and-forget: the organizer is told how many
+  // people were actually reached, so a failure isn't silent.
+  const { sent, failed } = await sendEventCancelled({
+    recipients: [...byEmail.values()],
+    eventName: ev.name,
+    reason,
+    organizerEmail: ev.creator_email,
+    shareUrl: `${appUrl()}/e/${ev.slug}`,
+  });
+
+  return { ok: true, sent, failed } as const;
+}
+
+/** Cancelling by mistake shouldn't be a one-way door. */
+export async function restoreEvent(token: string) {
+  const ev = await eventForToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" } as const;
+
+  const supa = supabaseService();
+  const { error } = await supa
+    .from("events")
+    .update({ cancelled_at: null, cancel_reason: null })
+    .eq("id", ev.id);
+  if (error) return { ok: false, error: error.message } as const;
+
   revalidatePath(`/manage/${token}`);
   revalidatePath(`/e/${ev.slug}`);
   return { ok: true } as const;

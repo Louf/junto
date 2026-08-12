@@ -28,9 +28,14 @@ export default async function EventPage({
   const banner = bannerPublicUrl(ev.banner_path);
   const when = new Date(ev.event_at);
 
+  const cancelled = Boolean(ev.cancelled_at);
+  const pledgeCount = ev.fund?.contributions.length ?? 0;
+
   // A fund without a target is still being set up — hide it from payers rather
   // than asking them to send an unknown sum. Fixed modes also need a share.
+  // A cancelled event closes the fund outright.
   const ready =
+    !cancelled &&
     ev.fund &&
     ev.fund.total_cents &&
     (!hasFixedShare(ev.fund.mode) || ev.fund.share_cents);
@@ -75,7 +80,39 @@ export default async function EventPage({
         <div className="aspect-[16/9] w-full bg-gradient-to-br from-foreground/[0.06] to-foreground/[0.02]" />
       )}
 
-      <div className="px-6 -mt-6">
+      {cancelled && (
+        <div className="px-6 -mt-6">
+          <div className="rounded-3xl border border-red-500/30 bg-red-500/10 p-6">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-red-600 dark:text-red-400">
+              Cancelled
+            </p>
+            <p className="mt-2 text-[15px] leading-[1.5]">
+              This event has been called off. Signups and payments are closed.
+            </p>
+            {ev.cancel_reason && (
+              <p className="mt-3 whitespace-pre-wrap text-[15px] leading-[1.5] text-foreground/80">
+                {ev.cancel_reason}
+              </p>
+            )}
+            {pledgeCount > 0 && (
+              <p className="mt-3 text-[14px] leading-[1.5]">
+                Already sent money? Contact the organizer at{" "}
+                <a
+                  href={`mailto:${ev.creator_email}?subject=${encodeURIComponent(
+                    `${ev.name} — cancelled`,
+                  )}`}
+                  className="underline underline-offset-2"
+                >
+                  {ev.creator_email}
+                </a>
+                .
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className={cancelled ? "mt-6 px-6" : "px-6 -mt-6"}>
         <div className="rounded-3xl bg-card border border-border p-6 shadow-sm">
           <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
             {format(when, "EEEE, MMM d")} · {format(when, "h:mm a")}
@@ -129,6 +166,7 @@ export default async function EventPage({
           {ev.jobs.map((job) => (
             <JobCard
               key={job.id}
+              closed={cancelled}
               job={{
                 id: job.id,
                 title: job.title,

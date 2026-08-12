@@ -351,22 +351,19 @@ export function FundCard({
                     </label>
 
                     <label className="flex flex-col gap-2">
-                      <span className="text-sm font-medium">
-                        Email
-                        <span className="ml-1 font-normal text-muted">
-                          · optional
-                        </span>
-                      </span>
+                      <span className="text-sm font-medium">Email</span>
                       <input
                         name="email"
                         type="email"
+                        required
                         maxLength={200}
                         placeholder="you@example.com"
                         className={inputClass}
                       />
                       <span className="text-[13px] text-muted">
-                        Only used to reach you if this event changes or is
-                        called off.
+                        We&rsquo;ll send you a record of this, and it&rsquo;s
+                        how {recipientName} can reach you if the event changes
+                        or is called off.
                       </span>
                     </label>
 

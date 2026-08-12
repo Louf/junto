@@ -7,6 +7,7 @@ import { AddJobForm } from "./AddJobForm";
 import { JobAdmin } from "./JobAdmin";
 import { EditEventCard } from "./EditEventCard";
 import { FundAdmin } from "./FundAdmin";
+import { CancelEventCard } from "./CancelEventCard";
 
 export const revalidate = 0;
 
@@ -34,7 +35,14 @@ export default async function ManagePage({
         View public page →
       </Link>
 
-      {welcome && (
+      {ev.cancelled_at && (
+        <div className="mt-4 rounded-2xl bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">
+          This event is cancelled. The public page still works so people can
+          see what happened, but signups and payments are closed.
+        </div>
+      )}
+
+      {welcome && !ev.cancelled_at && (
         <div className="mt-4 rounded-2xl bg-success/15 text-success px-4 py-3 text-sm">
           Your event is live. Bookmark this page — it&rsquo;s how you&rsquo;ll
           edit later, add jobs, and collect money if the event needs any.
@@ -120,6 +128,15 @@ export default async function ManagePage({
           ))}
           <AddJobForm token={editToken} />
         </div>
+      </section>
+
+      <section className="mt-10">
+        <CancelEventCard
+          token={editToken}
+          cancelledAt={ev.cancelled_at}
+          cancelReason={ev.cancel_reason}
+          pledgeCount={ev.fund?.contributions.length ?? 0}
+        />
       </section>
     </main>
   );

@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseService } from "@/lib/supabase/service";
 import { newToken } from "@/lib/ids";
-import { sendSignupConfirmation } from "@/lib/email";
+import { sendSignupConfirmation, sendContributionReceipt } from "@/lib/email";
+import { METHOD_LABELS, formatCents, isPaymentMethod } from "@/lib/payments";
 import { appUrl } from "@/lib/env";
 
 const schema = z.object({
@@ -37,13 +38,17 @@ export async function claimSlot(
   // Capacity check + event lookup.
   const { data: job, error: jobErr } = await supa
     .from("jobs")
-    .select("*, event:events(slug, name), signups:signups(id)")
+    .select("*, event:events(slug, name, cancelled_at), signups:signups(id)")
     .eq("id", parsed.data.job_id)
     .maybeSingle();
   if (jobErr || !job) return { ok: false, error: "Job not found" };
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const j = job as any;
+  // The UI hides this, but a stale page could still post.
+  if (j.event?.cancelled_at) {
+    return { ok: false, error: "This event has been cancelled" };
+  }
   if ((j.signups?.length ?? 0) >= j.capacity) {
     return { ok: false, error: "This job is already full" };
   }
@@ -87,9 +92,10 @@ export async function claimSlot(
 const pledgeSchema = z.object({
   fund_id: z.string().uuid(),
   name: z.string().min(1, "Add your name").max(120),
-  // Optional, but the only way to reach this person if the event is called
-  // off after they've sent money.
-  email: z.string().email("That email doesn't look right").nullable(),
+  // Required. Claiming a dessert slot already asks for an email; reporting a
+  // payment carries higher stakes, and this is the only way to reach someone
+  // if the event is called off after they've sent money.
+  email: z.string().email("Add an email so we can reach you"),
   amount_cents: z
     .number()
     .int()
@@ -110,7 +116,7 @@ export async function pledgeContribution(
   const parsed = pledgeSchema.safeParse({
     fund_id: String(formData.get("fund_id") ?? ""),
     name: String(formData.get("name") ?? "").trim(),
-    email: String(formData.get("email") ?? "").trim().toLowerCase() || null,
+    email: String(formData.get("email") ?? "").trim().toLowerCase(),
     amount_cents: Number(formData.get("amount_cents") ?? 0),
   });
   if (!parsed.success) {
@@ -124,10 +130,19 @@ export async function pledgeContribution(
 
   const { data: fund, error: fundErr } = await supa
     .from("funds")
-    .select("id, event:events(slug)")
+    .select(
+      "id, recipient_name, method, event:events(slug, name, creator_email, cancelled_at)",
+    )
     .eq("id", parsed.data.fund_id)
     .maybeSingle();
   if (fundErr || !fund) return { ok: false, error: "Fund not found" };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const f = fund as any;
+  const method = String(f.method ?? "");
+  if (f.event?.cancelled_at) {
+    return { ok: false, error: "This event has been cancelled" };
+  }
 
   const { error: insErr } = await supa.from("contributions").insert({
     fund_id: parsed.data.fund_id,
@@ -137,9 +152,22 @@ export async function pledgeContribution(
   });
   if (insErr) return { ok: false, error: "Could not record that payment" };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const slug = (fund as any).event?.slug as string | undefined;
+  const slug = f.event?.slug as string | undefined;
   if (slug) revalidatePath(`/e/${slug}`);
+
+  // Fire and forget — a failed receipt shouldn't discard a recorded payment.
+  if (slug) {
+    sendContributionReceipt({
+      to: parsed.data.email,
+      contributorName: parsed.data.name,
+      eventName: f.event?.name ?? "the event",
+      amount: formatCents(parsed.data.amount_cents),
+      recipientName: f.recipient_name,
+      methodLabel: isPaymentMethod(method) ? METHOD_LABELS[method] : method,
+      shareUrl: `${appUrl()}/e/${slug}`,
+      organizerEmail: f.event?.creator_email ?? "",
+    }).catch((e) => console.error("receipt email failed", e));
+  }
 
   return { ok: true };
 }

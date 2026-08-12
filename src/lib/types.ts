@@ -9,6 +9,9 @@ export type EventRow = {
   creator_user_id: string | null;
   edit_token: string;
   slug: string;
+  /** Set when the organizer calls the event off. The page stays reachable. */
+  cancelled_at: string | null;
+  cancel_reason: string | null;
 };
 
 export type JobRow = {

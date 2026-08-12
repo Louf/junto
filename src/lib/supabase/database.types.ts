@@ -52,6 +52,51 @@ export type Database = {
           },
         ]
       }
+      events: {
+        Row: {
+          banner_path: string | null
+          cancel_reason: string | null
+          cancelled_at: string | null
+          created_at: string
+          creator_email: string
+          creator_user_id: string | null
+          description: string | null
+          edit_token: string
+          event_at: string
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          banner_path?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          creator_email: string
+          creator_user_id?: string | null
+          description?: string | null
+          edit_token: string
+          event_at: string
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          banner_path?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          created_at?: string
+          creator_email?: string
+          creator_user_id?: string | null
+          description?: string | null
+          edit_token?: string
+          event_at?: string
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: []
+      }
       funds: {
         Row: {
           created_at: string
@@ -101,45 +146,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      events: {
-        Row: {
-          banner_path: string | null
-          created_at: string
-          creator_email: string
-          creator_user_id: string | null
-          description: string | null
-          edit_token: string
-          event_at: string
-          id: string
-          name: string
-          slug: string
-        }
-        Insert: {
-          banner_path?: string | null
-          created_at?: string
-          creator_email: string
-          creator_user_id?: string | null
-          description?: string | null
-          edit_token: string
-          event_at: string
-          id?: string
-          name: string
-          slug: string
-        }
-        Update: {
-          banner_path?: string | null
-          created_at?: string
-          creator_email?: string
-          creator_user_id?: string | null
-          description?: string | null
-          edit_token?: string
-          event_at?: string
-          id?: string
-          name?: string
-          slug?: string
-        }
-        Relationships: []
       }
       jobs: {
         Row: {

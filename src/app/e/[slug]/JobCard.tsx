@@ -5,7 +5,10 @@ import { SignupSheet } from "./SignupSheet";
 
 export function JobCard({
   job,
+  closed = false,
 }: {
+  /** Cancelled event — show the roster but take away the way in. */
+  closed?: boolean;
   job: {
     id: string;
     title: string;
@@ -16,15 +19,16 @@ export function JobCard({
   };
 }) {
   const full = job.filled >= job.capacity;
+  const locked = full || closed;
   const pct = Math.min(100, Math.round((job.filled / job.capacity) * 100));
   const remaining = Math.max(0, job.capacity - job.filled);
 
   return (
-    <SignupSheet job={job} disabled={full}>
+    <SignupSheet job={job} disabled={locked}>
       <button
         type="button"
         className="w-full text-left rounded-2xl bg-card border border-border p-5 flex flex-col gap-3 active:scale-[0.99] transition disabled:opacity-90"
-        disabled={full}
+        disabled={locked}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -46,6 +50,8 @@ export function JobCard({
             >
               Full
             </motion.span>
+          ) : closed ? (
+            <span className="shrink-0 text-[13px] text-muted">Closed</span>
           ) : (
             <span className="shrink-0 text-[13px] text-muted tabular-nums">
               {remaining} left

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { format } from "date-fns";
@@ -15,6 +16,52 @@ import { JobCard } from "./JobCard";
 import { FundCard } from "./FundCard";
 
 export const revalidate = 0;
+
+/**
+ * Junto is shared as a link, so the unfurl is the first impression. Describe
+ * what someone gets by tapping, not just the event's name.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const ev = await getEventBySlug(slug);
+  if (!ev) return { title: "Event not found — Junto" };
+
+  const when = format(new Date(ev.event_at), "EEEE, MMMM d 'at' h:mm a");
+  const capacity = ev.jobs.reduce((n, j) => n + j.capacity, 0);
+  const filled = ev.jobs.reduce((n, j) => n + j.signups.length, 0);
+  const remaining = Math.max(0, capacity - filled);
+
+  const title = ev.cancelled_at
+    ? `Cancelled: ${ev.name}`
+    : `${ev.name} — Junto`;
+
+  const description = ev.cancelled_at
+    ? `This event has been cancelled. ${ev.cancel_reason ?? ""}`.trim()
+    : ev.description?.trim() ||
+      `${when}. ${
+        remaining === 0
+          ? "Every slot is filled."
+          : `${remaining} of ${capacity} slots still open.`
+      }`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      url: `/e/${ev.slug}`,
+    },
+    twitter: { card: "summary_large_image", title, description },
+    // A cancelled or private-ish event shouldn't accumulate search presence.
+    robots: { index: false, follow: false },
+  };
+}
 
 export default async function EventPage({
   params,

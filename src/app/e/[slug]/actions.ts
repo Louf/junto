@@ -7,6 +7,7 @@ import { newToken } from "@/lib/ids";
 import { sendSignupConfirmation, sendContributionReceipt } from "@/lib/email";
 import { METHOD_LABELS, formatCents, isPaymentMethod } from "@/lib/payments";
 import { appUrl } from "@/lib/env";
+import { callerKey, hit } from "@/lib/rateLimit";
 
 const schema = z.object({
   job_id: z.string().uuid(),
@@ -33,6 +34,13 @@ export async function claimSlot(
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
+
+  // Unauthenticated and public — throttle before touching the database.
+  const limited = hit(await callerKey("signup"), 10, 60_000);
+  if (!limited.ok) {
+    return { ok: false, error: "Too many attempts — wait a moment and retry" };
+  }
+
   const supa = supabaseService();
 
   // Capacity check + event lookup.
@@ -126,6 +134,11 @@ export async function pledgeContribution(
     };
   }
 
+  const limited = hit(await callerKey("pledge"), 10, 60_000);
+  if (!limited.ok) {
+    return { ok: false, error: "Too many attempts — wait a moment and retry" };
+  }
+
   const supa = supabaseService();
 
   const { data: fund, error: fundErr } = await supa
@@ -142,6 +155,27 @@ export async function pledgeContribution(
   const method = String(f.method ?? "");
   if (f.event?.cancelled_at) {
     return { ok: false, error: "This event has been cancelled" };
+  }
+
+  // Guard against a double submit or a refresh replaying the action. A hard
+  // unique constraint would be wrong — in goal mode the same person may
+  // legitimately chip in twice — so this only collapses an identical repeat
+  // within a short window.
+  const since = new Date(Date.now() - 10 * 60_000).toISOString();
+  const { data: recent } = await supa
+    .from("contributions")
+    .select("id")
+    .eq("fund_id", parsed.data.fund_id)
+    .eq("email", parsed.data.email)
+    .eq("amount_cents", parsed.data.amount_cents)
+    .gte("created_at", since)
+    .maybeSingle();
+
+  if (recent) {
+    // Already recorded moments ago — treat as success rather than doubling it.
+    const slugNow = f.event?.slug as string | undefined;
+    if (slugNow) revalidatePath(`/e/${slugNow}`);
+    return { ok: true };
   }
 
   const { error: insErr } = await supa.from("contributions").insert({

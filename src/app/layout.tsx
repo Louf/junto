@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans } from "next/font/google";
 import "./globals.css";
+import { appUrl } from "@/lib/env";
 
 // Variable font — no weight array needed.
 const dmSans = DM_Sans({
@@ -10,6 +11,8 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
+  // Without this, relative OG image URLs resolve against localhost.
+  metadataBase: new URL(appUrl()),
   title: "Junto — Sign up. Show up.",
   description:
     "Create an event, set up jobs, share the link. Junto makes group signups effortless.",

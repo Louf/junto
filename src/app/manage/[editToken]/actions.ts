@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { supabaseService } from "@/lib/supabase/service";
-import { newToken } from "@/lib/ids";
+import { newSlug, newToken } from "@/lib/ids";
 import { getEventByEditToken } from "@/lib/events";
 import { sendEventCancelled, type CancelRecipient } from "@/lib/email";
 import { appUrl } from "@/lib/env";
-import { isValidZone } from "@/lib/dates";
+import { DEFAULT_DURATION_MINUTES, isValidZone } from "@/lib/dates";
 import {
   FUND_MODES,
   PAYMENT_METHODS,
@@ -61,6 +61,15 @@ export async function updateEvent(token: string, formData: FormData) {
 
   const rawTz = String(formData.get("event_tz") ?? "").trim();
   if (rawTz && isValidZone(rawTz)) patch.event_tz = rawTz;
+
+  patch.location =
+    String(formData.get("location") ?? "").trim().slice(0, 200) || null;
+
+  const rawDuration = Number(formData.get("duration_minutes") ?? 0);
+  patch.duration_minutes =
+    Number.isInteger(rawDuration) && rawDuration > 0 && rawDuration <= 24 * 60
+      ? rawDuration
+      : DEFAULT_DURATION_MINUTES;
 
   const banner = formData.get("banner");
   if (banner && banner instanceof File && banner.size > 0) {
@@ -401,4 +410,104 @@ export async function restoreEvent(token: string) {
   revalidatePath(`/manage/${token}`);
   revalidatePath(`/e/${ev.slug}`);
   return { ok: true } as const;
+}
+
+// =====================
+// Duplicate
+// =====================
+
+/**
+ * Starts a fresh event from this one.
+ *
+ * Copies the shape of the event — name, description, location, duration, jobs
+ * and where money goes — and deliberately leaves behind everything that
+ * belonged to the last occurrence: signups, contributions, the fund's amounts,
+ * and any cancellation.
+ *
+ * The banner isn't copied either. Two events pointing at one storage object
+ * means deleting one could break the other, and re-uploading is cheap.
+ */
+export async function duplicateEvent(token: string, formData: FormData) {
+  const ev = await getEventByEditToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" } as const;
+
+  const eventAtRaw = String(formData.get("event_at") ?? "");
+  const when = new Date(eventAtRaw);
+  if (!eventAtRaw || Number.isNaN(when.getTime())) {
+    return { ok: false, error: "Pick a date and time for the new event" } as const;
+  }
+
+  const rawTz = String(formData.get("event_tz") ?? "").trim();
+  const event_tz = rawTz && isValidZone(rawTz) ? rawTz : ev.event_tz;
+
+  const supa = supabaseService();
+
+  let slug = newSlug();
+  {
+    const { data: existing } = await supa
+      .from("events")
+      .select("id")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (existing) slug = newSlug();
+  }
+  const edit_token = newToken();
+
+  const { data: created, error: insertErr } = await supa
+    .from("events")
+    .insert({
+      name: ev.name,
+      description: ev.description,
+      location: ev.location,
+      duration_minutes: ev.duration_minutes,
+      event_at: when.toISOString(),
+      event_tz,
+      creator_email: ev.creator_email,
+      creator_user_id: ev.creator_user_id,
+      edit_token,
+      slug,
+    })
+    .select("id")
+    .single();
+
+  if (insertErr || !created) {
+    return {
+      ok: false,
+      error: insertErr?.message ?? "Could not duplicate this event",
+    } as const;
+  }
+
+  if (ev.jobs.length > 0) {
+    const { error: jobsErr } = await supa.from("jobs").insert(
+      ev.jobs.map((j, i) => ({
+        event_id: created.id,
+        title: j.title,
+        description: j.description,
+        capacity: j.capacity,
+        sort_order: i,
+      })),
+    );
+    if (jobsErr) {
+      await supa.from("events").delete().eq("id", created.id);
+      return { ok: false, error: `Could not copy jobs: ${jobsErr.message}` } as const;
+    }
+  }
+
+  // Where the money goes carries over; what it cost last time does not.
+  if (ev.fund) {
+    const { error: fundErr } = await supa.from("funds").insert({
+      event_id: created.id,
+      mode: ev.fund.mode,
+      recipient_name: ev.fund.recipient_name,
+      method: ev.fund.method,
+      handle: ev.fund.handle,
+      note: ev.fund.note,
+      total_cents: null,
+      share_cents: null,
+      headcount: null,
+    });
+    if (fundErr) console.error("fund copy failed", fundErr);
+  }
+
+  return { ok: true, editToken: edit_token } as const;
 }

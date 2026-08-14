@@ -167,10 +167,22 @@ export default async function EventPage({
           <h1 className="mt-2 text-[28px] font-semibold leading-tight tracking-tight">
             {ev.name}
           </h1>
+          {ev.location && (
+            <p className="mt-2 text-[15px] text-muted">{ev.location}</p>
+          )}
           {ev.description && (
             <p className="mt-3 text-[15px] leading-relaxed text-foreground/80 whitespace-pre-wrap">
               {ev.description}
             </p>
+          )}
+
+          {!cancelled && (
+            <a
+              href={`/e/${ev.slug}/event.ics`}
+              className="mt-4 inline-flex h-10 items-center rounded-xl border border-border px-4 text-[14px] font-medium transition hover:bg-foreground/5"
+            >
+              Add to calendar
+            </a>
           )}
         </div>
       </div>

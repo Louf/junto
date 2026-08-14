@@ -14,7 +14,11 @@ import { createEvent, type CreateState } from "./actions";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { EventCardPreview } from "@/components/EventCardPreview";
 import { PaymentIcon } from "@/components/PaymentIcon";
-import { browserZone } from "@/lib/dates";
+import {
+  DEFAULT_DURATION_MINUTES,
+  DURATION_OPTIONS,
+  browserZone,
+} from "@/lib/dates";
 import {
   FUND_MODES,
   METHOD_HINTS,
@@ -306,6 +310,29 @@ export function CreateForm() {
               </p>
             )}
           </div>
+
+          <Field label="Where">
+            <input
+              name="location"
+              maxLength={200}
+              placeholder="Church hall, 12 Oak Street"
+              className={inputClass}
+            />
+          </Field>
+
+          <Field label="How long">
+            <select
+              name="duration_minutes"
+              defaultValue={DEFAULT_DURATION_MINUTES}
+              className={inputClass}
+            >
+              {DURATION_OPTIONS.map((o) => (
+                <option key={o.minutes} value={o.minutes}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </Field>
 
           <Field label="Banner image" optional>
             <input

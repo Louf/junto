@@ -6,7 +6,7 @@ import { supabaseService } from "@/lib/supabase/service";
 import { newSlug, newToken } from "@/lib/ids";
 import { sendCreatorWelcome } from "@/lib/email";
 import { appUrl } from "@/lib/env";
-import { isValidZone } from "@/lib/dates";
+import { DEFAULT_DURATION_MINUTES, isValidZone } from "@/lib/dates";
 import {
   METHOD_LABELS,
   hasFixedShare,
@@ -57,6 +57,13 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
   const rawTz = String(formData.get("event_tz") ?? "").trim();
   const event_tz = rawTz && isValidZone(rawTz) ? rawTz : null;
 
+  const location = String(formData.get("location") ?? "").trim().slice(0, 200) || null;
+  const rawDuration = Number(formData.get("duration_minutes") ?? 0);
+  const duration_minutes =
+    Number.isInteger(rawDuration) && rawDuration > 0 && rawDuration <= 24 * 60
+      ? rawDuration
+      : DEFAULT_DURATION_MINUTES;
+
   const supa = supabaseService();
 
   // Handle banner upload
@@ -99,6 +106,8 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
       description: data.description,
       event_at: eventAtIso,
       event_tz,
+      location,
+      duration_minutes,
       banner_path,
       creator_email: data.creator_email,
       edit_token,

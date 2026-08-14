@@ -7,6 +7,7 @@ import { newToken } from "@/lib/ids";
 import { sendSignupConfirmation, sendContributionReceipt } from "@/lib/email";
 import { METHOD_LABELS, formatCents, isPaymentMethod } from "@/lib/payments";
 import { appUrl } from "@/lib/env";
+import { formatEventDate } from "@/lib/dates";
 import { callerKey, hit, retryMessage } from "@/lib/rateLimit";
 
 const schema = z.object({
@@ -49,7 +50,9 @@ export async function claimSlot(
   // Capacity check + event lookup.
   const { data: job, error: jobErr } = await supa
     .from("jobs")
-    .select("*, event:events(slug, name, cancelled_at), signups:signups(id)")
+    .select(
+      "*, event:events(slug, name, cancelled_at, event_at, event_tz, location), signups:signups(id)",
+    )
     .eq("id", parsed.data.job_id)
     .maybeSingle();
   if (jobErr || !job) return { ok: false, error: "Job not found" };
@@ -90,6 +93,11 @@ export async function claimSlot(
     jobTitle: j.title,
     shareUrl,
     cancelUrl,
+    calendarUrl: `${shareUrl}/event.ics`,
+    when: j.event.event_at
+      ? formatEventDate(j.event.event_at, j.event.event_tz, "long")
+      : undefined,
+    location: j.event.location ?? null,
   }).catch((e) => console.error("signup email failed", e));
 
   revalidatePath(`/e/${slug}`);

@@ -65,3 +65,33 @@ export function formatEventDate(
   const date = typeof instant === "string" ? new Date(instant) : instant;
   return formatInTimeZone(date, eventZone(tz), DATE_FORMATS[pattern]);
 }
+
+/** Durations offered in the forms. Two hours suits a potluck; the rest are there for everything else. */
+export const DURATION_OPTIONS: { minutes: number; label: string }[] = [
+  { minutes: 30, label: "30 minutes" },
+  { minutes: 60, label: "1 hour" },
+  { minutes: 90, label: "1.5 hours" },
+  { minutes: 120, label: "2 hours" },
+  { minutes: 180, label: "3 hours" },
+  { minutes: 240, label: "4 hours" },
+  { minutes: 360, label: "6 hours" },
+  { minutes: 480, label: "8 hours" },
+];
+
+export const DEFAULT_DURATION_MINUTES = 120;
+
+/** "2 hours", "90 minutes" — for display where the select isn't present. */
+export function formatDuration(minutes: number): string {
+  const match = DURATION_OPTIONS.find((o) => o.minutes === minutes);
+  if (match) return match.label;
+  if (minutes % 60 === 0) {
+    const h = minutes / 60;
+    return `${h} hour${h === 1 ? "" : "s"}`;
+  }
+  return `${minutes} minutes`;
+}
+
+/** The instant an event ends. A calendar entry needs one. */
+export function eventEndsAt(startIso: string, durationMinutes: number): Date {
+  return new Date(new Date(startIso).getTime() + durationMinutes * 60_000);
+}

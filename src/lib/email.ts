@@ -59,11 +59,26 @@ export async function sendSignupConfirmation(opts: {
   jobTitle: string;
   shareUrl: string;
   cancelUrl: string;
+  /** Calendar file, so "show up" is one tap rather than a manual entry. */
+  calendarUrl?: string;
+  when?: string;
+  location?: string | null;
 }) {
+  const details = [
+    opts.when ? `<p style="margin:4px 0"><strong>${opts.when}</strong></p>` : "",
+    opts.location ? `<p style="margin:4px 0;color:#3d3d42">${opts.location}</p>` : "",
+  ].join("");
+
   const html = frame(
     `You're signed up for ${opts.eventName}`,
     `
     <p>Hi ${opts.participantName}, you've claimed a slot for <strong>${opts.jobTitle}</strong>.</p>
+    ${details}
+    ${
+      opts.calendarUrl
+        ? `<p style="margin-top:16px"><a href="${opts.calendarUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 16px;border-radius:12px;text-decoration:none">Add to calendar</a></p>`
+        : ""
+    }
     <p><a href="${opts.shareUrl}">View the event</a></p>
     <p style="margin-top:24px;color:#7a7a85;font-size:14px">Need to release your slot? <a href="${opts.cancelUrl}">Cancel here</a>.</p>
     `,
@@ -197,4 +212,105 @@ export async function sendEventCancelled(opts: {
   }
 
   return { sent, failed };
+}
+
+/** One person's reminder that they're on for something tomorrow. */
+export type ReminderRecipient = {
+  email: string;
+  name: string;
+  jobTitle: string;
+  cancelUrl: string;
+};
+
+/**
+ * "You're on tomorrow" — batched, because an event with thirty claimants
+ * shouldn't be thirty API calls.
+ *
+ * Returns real counts: reminders that silently fail to send are worse than no
+ * reminders at all, because the organizer believes everyone was told.
+ */
+export async function sendEventReminders(opts: {
+  recipients: ReminderRecipient[];
+  eventName: string;
+  when: string;
+  location: string | null;
+  shareUrl: string;
+  calendarUrl: string;
+  organizerEmail: string;
+}): Promise<{ sent: number; failed: number }> {
+  if (opts.recipients.length === 0) return { sent: 0, failed: 0 };
+
+  if (!resend) {
+    console.warn("[email] RESEND_API_KEY not set — reminders not sent", {
+      count: opts.recipients.length,
+    });
+    return { sent: 0, failed: opts.recipients.length };
+  }
+
+  const where = opts.location
+    ? `<p style="margin:4px 0;color:#3d3d42">${opts.location}</p>`
+    : "";
+
+  const messages = opts.recipients.map((r) => ({
+    from: FROM,
+    to: r.email,
+    replyTo: opts.organizerEmail || undefined,
+    subject: `Tomorrow: ${opts.eventName}`,
+    html: frame(
+      `${opts.eventName} is tomorrow`,
+      `<p>Hi ${r.name}, you're down for <strong>${r.jobTitle}</strong>.</p>
+       <p style="margin:4px 0"><strong>${opts.when}</strong></p>
+       ${where}
+       <p style="margin-top:16px"><a href="${opts.calendarUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 16px;border-radius:12px;text-decoration:none">Add to calendar</a></p>
+       <p><a href="${opts.shareUrl}">View the event</a></p>
+       <p style="margin-top:24px;color:#7a7a85;font-size:14px">Can't make it after all? <a href="${r.cancelUrl}">Release your slot</a> so someone else can take it.</p>`,
+    ),
+  }));
+
+  let sent = 0;
+  let failed = 0;
+  for (let i = 0; i < messages.length; i += 100) {
+    const chunk = messages.slice(i, i + 100);
+    try {
+      const { error } = await resend.batch.send(chunk);
+      if (error) {
+        console.error("[email] reminder batch failed", error);
+        failed += chunk.length;
+      } else {
+        sent += chunk.length;
+      }
+    } catch (e) {
+      console.error("[email] reminder batch threw", e);
+      failed += chunk.length;
+    }
+  }
+  return { sent, failed };
+}
+
+/**
+ * Nudges the organizer while there's still time to ask someone.
+ *
+ * Only sent when slots are actually empty — a reminder that everything is fine
+ * is noise, and noise is how people start ignoring the useful ones.
+ */
+export async function sendOrganizerNudge(opts: {
+  to: string;
+  eventName: string;
+  when: string;
+  remaining: number;
+  emptyJobs: string[];
+  shareUrl: string;
+  manageUrl: string;
+}) {
+  const html = frame(
+    `${opts.remaining} ${opts.remaining === 1 ? "slot" : "slots"} still open`,
+    `<p><strong>${opts.eventName}</strong> is on ${opts.when}, and ${
+      opts.remaining === 1 ? "one slot hasn't" : `${opts.remaining} slots haven't`
+    } been claimed yet.</p>
+     <p style="margin:12px 0;color:#3d3d42">Still needs someone: ${opts.emptyJobs.join(", ")}</p>
+     <p>Sharing the link again is usually enough:</p>
+     <p><a href="${opts.shareUrl}" style="display:inline-block;background:#111;color:#fff;padding:12px 16px;border-radius:12px;text-decoration:none">${opts.shareUrl}</a></p>
+     <p style="margin-top:24px;color:#7a7a85;font-size:14px">Need to change something? <a href="${opts.manageUrl}">Manage the event</a>.</p>`,
+  );
+  await send({ to: opts.to, subject: `${opts.eventName}: slots still open`, html });
 }

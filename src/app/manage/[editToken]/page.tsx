@@ -8,6 +8,7 @@ import { JobAdmin } from "./JobAdmin";
 import { EditEventCard } from "./EditEventCard";
 import { FundAdmin } from "./FundAdmin";
 import { CancelEventCard } from "./CancelEventCard";
+import { DuplicateEventCard } from "./DuplicateEventCard";
 
 export const revalidate = 0;
 
@@ -57,6 +58,8 @@ export default async function ManagePage({
             description: ev.description,
             event_at: ev.event_at,
             event_tz: ev.event_tz,
+            location: ev.location,
+            duration_minutes: ev.duration_minutes,
           }}
           bannerUrl={banner}
         />
@@ -131,7 +134,12 @@ export default async function ManagePage({
         </div>
       </section>
 
-      <section className="mt-10">
+      <section className="mt-10 flex flex-col gap-3">
+        <DuplicateEventCard
+          token={editToken}
+          jobCount={ev.jobs.length}
+          hasFund={Boolean(ev.fund)}
+        />
         <CancelEventCard
           token={editToken}
           cancelledAt={ev.cancelled_at}

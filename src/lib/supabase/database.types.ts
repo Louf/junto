@@ -61,10 +61,12 @@ export type Database = {
           creator_email: string
           creator_user_id: string | null
           description: string | null
+          duration_minutes: number
           edit_token: string
           event_at: string
           event_tz: string | null
           id: string
+          location: string | null
           name: string
           slug: string
         }
@@ -76,10 +78,12 @@ export type Database = {
           creator_email: string
           creator_user_id?: string | null
           description?: string | null
+          duration_minutes?: number
           edit_token: string
           event_at: string
           event_tz?: string | null
           id?: string
+          location?: string | null
           name: string
           slug: string
         }
@@ -91,10 +95,12 @@ export type Database = {
           creator_email?: string
           creator_user_id?: string | null
           description?: string | null
+          duration_minutes?: number
           edit_token?: string
           event_at?: string
           event_tz?: string | null
           id?: string
+          location?: string | null
           name?: string
           slug?: string
         }
@@ -205,6 +211,45 @@ export type Database = {
           window_start?: string
         }
         Relationships: []
+      }
+      sent_reminders: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          kind: string
+          signup_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          kind: string
+          signup_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          kind?: string
+          signup_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sent_reminders_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sent_reminders_signup_id_fkey"
+            columns: ["signup_id"]
+            isOneToOne: false
+            referencedRelation: "signups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       signups: {
         Row: {

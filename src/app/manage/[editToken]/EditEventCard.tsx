@@ -3,7 +3,12 @@
 import { useState, useTransition } from "react";
 import { updateEvent } from "./actions";
 import { DateTimePicker } from "@/components/DateTimePicker";
-import { browserZone, formatEventDate } from "@/lib/dates";
+import {
+  DEFAULT_DURATION_MINUTES,
+  DURATION_OPTIONS,
+  browserZone,
+  formatEventDate,
+} from "@/lib/dates";
 
 export function EditEventCard({
   token,
@@ -16,6 +21,8 @@ export function EditEventCard({
     description: string | null;
     event_at: string;
     event_tz: string | null;
+    location: string | null;
+    duration_minutes: number;
   };
   bannerUrl: string | null;
 }) {
@@ -64,6 +71,9 @@ export function EditEventCard({
             <h1 className="mt-1 text-[28px] font-semibold leading-tight tracking-tight">
               {initial.name}
             </h1>
+            {initial.location && (
+              <p className="mt-1 text-[14px] text-muted">{initial.location}</p>
+            )}
             {initial.description && (
               <p className="mt-2 text-[15px] text-foreground/80 whitespace-pre-wrap">
                 {initial.description}
@@ -109,6 +119,30 @@ export function EditEventCard({
       <label className="flex flex-col gap-2">
         <span className="text-sm font-medium">Date &amp; time</span>
         <DateTimePicker value={eventAt} onChange={setEventAt} />
+      </label>
+      <label className="flex flex-col gap-2">
+        <span className="text-sm font-medium">Where</span>
+        <input
+          name="location"
+          defaultValue={initial.location ?? ""}
+          maxLength={200}
+          placeholder="Church hall, 12 Oak Street"
+          className="w-full rounded-xl bg-foreground/[0.05] px-4 py-3 text-[16px] outline-none"
+        />
+      </label>
+      <label className="flex flex-col gap-2">
+        <span className="text-sm font-medium">How long</span>
+        <select
+          name="duration_minutes"
+          defaultValue={initial.duration_minutes ?? DEFAULT_DURATION_MINUTES}
+          className="w-full rounded-xl bg-foreground/[0.05] px-4 py-3 text-[16px] outline-none"
+        >
+          {DURATION_OPTIONS.map((o) => (
+            <option key={o.minutes} value={o.minutes}>
+              {o.label}
+            </option>
+          ))}
+        </select>
       </label>
       <label className="flex flex-col gap-2">
         <span className="text-sm font-medium">

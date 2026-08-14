@@ -6,6 +6,10 @@ export type EventRow = {
   event_at: string;
   /** IANA zone the event happens in. Null on pre-existing rows. */
   event_tz: string | null;
+  /** Free text: a venue, an address, or "the church hall". */
+  location: string | null;
+  /** How long it runs. Needed for a calendar entry, which requires an end. */
+  duration_minutes: number;
   banner_path: string | null;
   creator_email: string;
   creator_user_id: string | null;

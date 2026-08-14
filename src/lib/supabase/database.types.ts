@@ -249,7 +249,10 @@ export type Database = {
       claim_events_by_email: { Args: never; Returns: number }
       rate_limit_hit: {
         Args: { p_key: string; p_limit: number; p_window_seconds: number }
-        Returns: { allowed: boolean; retry_after_seconds: number }[]
+        Returns: {
+          allowed: boolean
+          retry_after_seconds: number
+        }[]
       }
     }
     Enums: {

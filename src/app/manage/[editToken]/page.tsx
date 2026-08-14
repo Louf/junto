@@ -56,6 +56,7 @@ export default async function ManagePage({
             name: ev.name,
             description: ev.description,
             event_at: ev.event_at,
+            event_tz: ev.event_tz,
           }}
           bannerUrl={banner}
         />

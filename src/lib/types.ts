@@ -4,6 +4,8 @@ export type EventRow = {
   name: string;
   description: string | null;
   event_at: string;
+  /** IANA zone the event happens in. Null on pre-existing rows. */
+  event_tz: string | null;
   banner_path: string | null;
   creator_email: string;
   creator_user_id: string | null;

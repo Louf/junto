@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { format } from "date-fns";
 import { updateEvent } from "./actions";
 import { DateTimePicker } from "@/components/DateTimePicker";
+import { browserZone, formatEventDate } from "@/lib/dates";
 
 export function EditEventCard({
   token,
@@ -15,6 +15,7 @@ export function EditEventCard({
     name: string;
     description: string | null;
     event_at: string;
+    event_tz: string | null;
   };
   bannerUrl: string | null;
 }) {
@@ -33,6 +34,9 @@ export function EditEventCard({
     setError(null);
     const fd = new FormData(e.currentTarget);
     fd.set("event_at", eventAt.toISOString());
+    // The picker works in local time, so re-capture the zone alongside it —
+    // otherwise moving an event while travelling would keep a stale zone.
+    fd.set("event_tz", browserZone());
     start(async () => {
       const res = await updateEvent(token, fd);
       if (res.ok) setEditing(false);
@@ -41,7 +45,6 @@ export function EditEventCard({
   }
 
   if (!editing) {
-    const when = new Date(initial.event_at);
     return (
       <div>
         {bannerUrl && (
@@ -55,7 +58,8 @@ export function EditEventCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
-              {format(when, "EEEE, MMM d")} · {format(when, "h:mm a")}
+              {formatEventDate(initial.event_at, initial.event_tz, "dayOnly")} ·{" "}
+              {formatEventDate(initial.event_at, initial.event_tz, "timeOnly")}
             </div>
             <h1 className="mt-1 text-[28px] font-semibold leading-tight tracking-tight">
               {initial.name}

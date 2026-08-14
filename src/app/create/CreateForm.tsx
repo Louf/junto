@@ -14,6 +14,7 @@ import { createEvent, type CreateState } from "./actions";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { EventCardPreview } from "@/components/EventCardPreview";
 import { PaymentIcon } from "@/components/PaymentIcon";
+import { browserZone } from "@/lib/dates";
 import {
   FUND_MODES,
   METHOD_HINTS,
@@ -211,6 +212,9 @@ export function CreateForm() {
       ),
     );
     fd.set("event_at", eventAt.toISOString());
+    // The picker works in the organizer's local time, so their zone is the
+    // one the event actually happens in.
+    fd.set("event_tz", browserZone());
     startTransition(() => formAction(fd));
   }
 

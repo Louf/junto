@@ -6,6 +6,7 @@ import { supabaseService } from "@/lib/supabase/service";
 import { newSlug, newToken } from "@/lib/ids";
 import { sendCreatorWelcome } from "@/lib/email";
 import { appUrl } from "@/lib/env";
+import { isValidZone } from "@/lib/dates";
 import {
   METHOD_LABELS,
   hasFixedShare,
@@ -51,6 +52,11 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
 
   const eventAtIso = new Date(data.event_at).toISOString();
 
+  // Ignore anything the runtime can't resolve rather than storing a zone that
+  // will throw at format time.
+  const rawTz = String(formData.get("event_tz") ?? "").trim();
+  const event_tz = rawTz && isValidZone(rawTz) ? rawTz : null;
+
   const supa = supabaseService();
 
   // Handle banner upload
@@ -92,6 +98,7 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
       name: data.name,
       description: data.description,
       event_at: eventAtIso,
+      event_tz,
       banner_path,
       creator_email: data.creator_email,
       edit_token,

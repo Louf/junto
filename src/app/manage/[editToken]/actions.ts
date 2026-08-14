@@ -7,6 +7,7 @@ import { newToken } from "@/lib/ids";
 import { getEventByEditToken } from "@/lib/events";
 import { sendEventCancelled, type CancelRecipient } from "@/lib/email";
 import { appUrl } from "@/lib/env";
+import { isValidZone } from "@/lib/dates";
 import {
   FUND_MODES,
   PAYMENT_METHODS,
@@ -57,6 +58,9 @@ export async function updateEvent(token: string, formData: FormData) {
     description: parsed.data.description,
     event_at: new Date(parsed.data.event_at).toISOString(),
   };
+
+  const rawTz = String(formData.get("event_tz") ?? "").trim();
+  if (rawTz && isValidZone(rawTz)) patch.event_tz = rawTz;
 
   const banner = formData.get("banner");
   if (banner && banner instanceof File && banner.size > 0) {

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { format } from "date-fns";
 import { getEventBySlug, bannerPublicUrl } from "@/lib/events";
+import { formatEventDate } from "@/lib/dates";
 import {
   GOAL_PRESETS,
   formatCents,
@@ -30,7 +30,7 @@ export async function generateMetadata({
   const ev = await getEventBySlug(slug);
   if (!ev) return { title: "Event not found — Junto" };
 
-  const when = format(new Date(ev.event_at), "EEEE, MMMM d 'at' h:mm a");
+  const when = formatEventDate(ev.event_at, ev.event_tz, "long");
   const capacity = ev.jobs.reduce((n, j) => n + j.capacity, 0);
   const filled = ev.jobs.reduce((n, j) => n + j.signups.length, 0);
   const remaining = Math.max(0, capacity - filled);
@@ -73,7 +73,6 @@ export default async function EventPage({
   if (!ev) notFound();
 
   const banner = bannerPublicUrl(ev.banner_path);
-  const when = new Date(ev.event_at);
 
   const cancelled = Boolean(ev.cancelled_at);
   const pledgeCount = ev.fund?.contributions.length ?? 0;
@@ -162,7 +161,8 @@ export default async function EventPage({
       <div className={cancelled ? "mt-6 px-6" : "px-6 -mt-6"}>
         <div className="rounded-3xl bg-card border border-border p-6 shadow-sm">
           <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
-            {format(when, "EEEE, MMM d")} · {format(when, "h:mm a")}
+            {formatEventDate(ev.event_at, ev.event_tz, "dayOnly")} ·{" "}
+            {formatEventDate(ev.event_at, ev.event_tz, "timeOnly")}
           </div>
           <h1 className="mt-2 text-[28px] font-semibold leading-tight tracking-tight">
             {ev.name}

@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { format } from "date-fns";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseService } from "@/lib/supabase/service";
+import { formatEventDate } from "@/lib/dates";
 import { signOut } from "./actions";
 
 export const revalidate = 0;
@@ -25,7 +25,7 @@ export default async function MePage() {
   const supa = supabaseService();
   const { data: events } = await supa
     .from("events")
-    .select("id, name, slug, event_at, edit_token, banner_path")
+    .select("id, name, slug, event_at, event_tz, edit_token, banner_path, cancelled_at")
     .or(`creator_user_id.eq.${user.id},creator_email.eq.${user.email}`)
     .order("event_at", { ascending: false });
 
@@ -69,8 +69,13 @@ export default async function MePage() {
               className="rounded-2xl bg-card border border-border p-4 flex items-center justify-between gap-3 active:scale-[0.99] transition"
             >
               <div className="min-w-0">
-                <div className="text-[13px] text-muted">
-                  {format(new Date(e.event_at), "EEE, MMM d · h:mm a")}
+                <div className="flex items-center gap-2 text-[13px] text-muted">
+                  <span>{formatEventDate(e.event_at, e.event_tz, "compact")}</span>
+                  {e.cancelled_at && (
+                    <span className="shrink-0 rounded-full bg-red-500/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-red-600 dark:text-red-400">
+                      Cancelled
+                    </span>
+                  )}
                 </div>
                 <div className="text-[17px] font-semibold truncate">
                   {e.name}

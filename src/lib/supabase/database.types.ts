@@ -63,6 +63,7 @@ export type Database = {
           description: string | null
           edit_token: string
           event_at: string
+          event_tz: string | null
           id: string
           name: string
           slug: string
@@ -77,6 +78,7 @@ export type Database = {
           description?: string | null
           edit_token: string
           event_at: string
+          event_tz?: string | null
           id?: string
           name: string
           slug: string
@@ -91,6 +93,7 @@ export type Database = {
           description?: string | null
           edit_token?: string
           event_at?: string
+          event_tz?: string | null
           id?: string
           name?: string
           slug?: string

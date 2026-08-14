@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
-import { format } from "date-fns";
 import { getEventBySlug } from "@/lib/events";
+import { formatEventDate } from "@/lib/dates";
 
 export const alt = "Junto event";
 export const size = { width: 1200, height: 630 };
@@ -33,7 +33,7 @@ export default async function Image({
 
   const name = ev?.name ?? "Junto";
   const cancelled = Boolean(ev?.cancelled_at);
-  const when = ev ? format(new Date(ev.event_at), "EEEE, MMMM d · h:mm a") : "";
+  const when = ev ? formatEventDate(ev.event_at, ev.event_tz, "preview") : "";
 
   const capacity = ev?.jobs.reduce((n, j) => n + j.capacity, 0) ?? 0;
   const filled = ev?.jobs.reduce((n, j) => n + j.signups.length, 0) ?? 0;

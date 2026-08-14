@@ -30,9 +30,14 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Skip Next internals, static files, generated icons and OG images, and
-    // the auth callback (which handles its own cookies). Every match costs a
-    // Supabase session refresh, so image routes are worth excluding.
-    "/((?!_next/static|_next/image|favicon.ico|icon|apple-icon|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    // Skip all Next internals, static files, and generated icons and OG
+    // images. Every match costs a Supabase session refresh, so this should
+    // only run on real page requests.
+    //
+    // `_next` is excluded wholesale rather than just static/image: it also
+    // covers the HMR socket in dev and the RSC internals, none of which have
+    // a session to refresh and none of which should be passed through
+    // NextResponse.next().
+    "/((?!_next|favicon.ico|icon|apple-icon|opengraph-image|.*/opengraph-image|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
   ],
 };

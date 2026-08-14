@@ -40,13 +40,24 @@ const BANNER_MAX_BYTES = 5 * 1024 * 1024;
 
 const initialState: CreateState | null = null;
 
-function newJob(): JobDraft {
-  return { id: nanoid(8), title: "", description: "", capacity: 1 };
+/**
+ * The first job's id must be deterministic.
+ *
+ * The initial render runs twice — once on the server, once during hydration —
+ * so a random id there produces different `id` and `aria-controls` attributes
+ * on each pass and React reports a hydration mismatch. Every other job is
+ * added by a click, which only ever happens on the client, so those can be
+ * random.
+ */
+const FIRST_JOB_ID = "job-1";
+
+function newJob(id: string = nanoid(8)): JobDraft {
+  return { id, title: "", description: "", capacity: 1 };
 }
 
 export function CreateForm() {
   const [name, setName] = useState("");
-  const [jobs, setJobs] = useState<JobDraft[]>(() => [newJob()]);
+  const [jobs, setJobs] = useState<JobDraft[]>(() => [newJob(FIRST_JOB_ID)]);
   const [openJobId, setOpenJobId] = useState<string | null>(() => jobs[0].id);
   const [jobError, setJobError] = useState<string | null>(null);
   const [bannerPreview, setBannerPreview] = useState<string | null>(null);

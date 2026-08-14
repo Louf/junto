@@ -1,48 +1,40 @@
 import { headers } from "next/headers";
+import { supabaseService } from "./supabase/service";
 
 /**
- * Best-effort throttle for unauthenticated public actions.
+ * Throttle for unauthenticated public actions, counted in Postgres so every
+ * serverless instance shares one bucket.
  *
- * IMPORTANT: this is in-memory and therefore per-instance. On serverless it
- * resets on cold start and doesn't coordinate across concurrent instances, so
- * it stops naive floods from a single client and nothing more. Before real
- * traffic this should move to a shared store (Upstash, or a Postgres table
- * with a periodic sweep).
+ * Fixed window rather than sliding: simpler, one round trip, and the failure
+ * mode (a burst straddling a window boundary) is acceptable for what this
+ * protects against. See supabase/migrations/*_add_rate_limits.sql.
  */
-type Bucket = { count: number; resetAt: number };
+export type RateLimitResult = { ok: true } | { ok: false; retryAfterSeconds: number };
 
-const buckets = new Map<string, Bucket>();
-
-/** Stop the map growing without bound on a long-lived instance. */
-function sweep(now: number) {
-  if (buckets.size < 5_000) return;
-  for (const [key, b] of buckets) {
-    if (b.resetAt <= now) buckets.delete(key);
-  }
-}
-
-export type RateLimitResult = { ok: true } | { ok: false; retryAfterMs: number };
-
-export function hit(
+export async function hit(
   key: string,
   limit: number,
-  windowMs: number,
-): RateLimitResult {
-  const now = Date.now();
-  sweep(now);
+  windowSeconds: number,
+): Promise<RateLimitResult> {
+  const supa = supabaseService();
 
-  const bucket = buckets.get(key);
-  if (!bucket || bucket.resetAt <= now) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
+  const { data, error } = await supa.rpc("rate_limit_hit", {
+    p_key: key,
+    p_limit: limit,
+    p_window_seconds: windowSeconds,
+  });
+
+  // Fail open. This is a speed bump, not an authorization check — if the
+  // limiter itself is broken, that shouldn't stop people signing up.
+  if (error) {
+    console.error("[rateLimit] check failed, allowing request", error);
     return { ok: true };
   }
 
-  if (bucket.count >= limit) {
-    return { ok: false, retryAfterMs: bucket.resetAt - now };
-  }
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row || row.allowed) return { ok: true };
 
-  bucket.count += 1;
-  return { ok: true };
+  return { ok: false, retryAfterSeconds: row.retry_after_seconds ?? 60 };
 }
 
 /**
@@ -56,4 +48,11 @@ export async function callerKey(scope: string): Promise<string> {
   const ip =
     forwarded?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
   return `${scope}:${ip}`;
+}
+
+/** Human-readable wait, for the message shown to whoever got throttled. */
+export function retryMessage(seconds: number): string {
+  if (seconds <= 60) return "Wait a moment and try again.";
+  const minutes = Math.ceil(seconds / 60);
+  return `Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
 }

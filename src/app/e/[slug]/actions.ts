@@ -7,7 +7,7 @@ import { newToken } from "@/lib/ids";
 import { sendSignupConfirmation, sendContributionReceipt } from "@/lib/email";
 import { METHOD_LABELS, formatCents, isPaymentMethod } from "@/lib/payments";
 import { appUrl } from "@/lib/env";
-import { callerKey, hit } from "@/lib/rateLimit";
+import { callerKey, hit, retryMessage } from "@/lib/rateLimit";
 
 const schema = z.object({
   job_id: z.string().uuid(),
@@ -35,10 +35,13 @@ export async function claimSlot(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
 
-  // Unauthenticated and public — throttle before touching the database.
-  const limited = hit(await callerKey("signup"), 10, 60_000);
+  // Unauthenticated and public — throttle before doing any real work.
+  const limited = await hit(await callerKey("signup"), 10, 60);
   if (!limited.ok) {
-    return { ok: false, error: "Too many attempts — wait a moment and retry" };
+    return {
+      ok: false,
+      error: `Too many attempts. ${retryMessage(limited.retryAfterSeconds)}`,
+    };
   }
 
   const supa = supabaseService();
@@ -134,9 +137,12 @@ export async function pledgeContribution(
     };
   }
 
-  const limited = hit(await callerKey("pledge"), 10, 60_000);
+  const limited = await hit(await callerKey("pledge"), 10, 60);
   if (!limited.ok) {
-    return { ok: false, error: "Too many attempts — wait a moment and retry" };
+    return {
+      ok: false,
+      error: `Too many attempts. ${retryMessage(limited.retryAfterSeconds)}`,
+    };
   }
 
   const supa = supabaseService();

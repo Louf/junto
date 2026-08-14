@@ -185,6 +185,24 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          bucket_key: string
+          count: number
+          window_start: string
+        }
+        Insert: {
+          bucket_key: string
+          count?: number
+          window_start: string
+        }
+        Update: {
+          bucket_key?: string
+          count?: number
+          window_start?: string
+        }
+        Relationships: []
+      }
       signups: {
         Row: {
           cancel_token: string
@@ -229,6 +247,10 @@ export type Database = {
     }
     Functions: {
       claim_events_by_email: { Args: never; Returns: number }
+      rate_limit_hit: {
+        Args: { p_key: string; p_limit: number; p_window_seconds: number }
+        Returns: { allowed: boolean; retry_after_seconds: number }[]
+      }
     }
     Enums: {
       [_ in never]: never

@@ -90,6 +90,7 @@ export default async function EventPage({
   // A cancelled event closes the fund outright.
   const ready =
     !cancelled &&
+    ev.kind !== "sheet" &&
     ev.fund &&
     ev.fund.total_cents &&
     (!hasFixedShare(ev.fund.mode) || ev.fund.share_cents);

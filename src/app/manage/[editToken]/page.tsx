@@ -61,8 +61,7 @@ export default async function ManagePage({
       {welcome && !ev.cancelled_at && (
         <div className="mt-4 rounded-2xl bg-success/15 text-success px-4 py-3 text-sm">
           Your event is live. Bookmark this page — it&rsquo;s how you&rsquo;ll
-          edit later, {isSheet ? "change the sheet" : "add jobs"}, and collect
-          money if the event needs any.
+          edit later{isSheet ? " and change the sheet" : ", add jobs, and collect money if the event needs any"}.
         </div>
       )}
 
@@ -86,45 +85,47 @@ export default async function ManagePage({
         <ShareCard shareUrl={shareUrl} />
       </div>
 
-      <section className="mt-8">
-        <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
-          Chip in
-        </h2>
-        <p className="mt-1 text-sm text-muted">
-          Optional. Pay someone back, split a cost, or raise a total.
-        </p>
-        <div className="mt-3">
-          <FundAdmin
-            token={editToken}
-            suggestedHeadcount={
-              (isSheet
-                ? ev.sheet_rows.length
-                : ev.jobs.reduce((n, j) => n + j.signups.length, 0)) || null
-            }
-            fund={
-              ev.fund
-                ? {
-                    mode: ev.fund.mode,
-                    recipientName: ev.fund.recipient_name,
-                    totalCents: ev.fund.total_cents,
-                    shareCents: ev.fund.share_cents,
-                    headcount: ev.fund.headcount,
-                    method: ev.fund.method,
-                    handle: ev.fund.handle,
-                    note: ev.fund.note,
-                    contributions: ev.fund.contributions.map((c) => ({
-                      id: c.id,
-                      name: c.name,
-                      email: c.email,
-                      amountCents: c.amount_cents,
-                      confirmed: c.status === "confirmed",
-                    })),
-                  }
-                : null
-            }
-          />
-        </div>
-      </section>
+      {!isSheet && (
+        <section className="mt-8">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
+            Chip in
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Optional. Pay someone back, split a cost, or raise a total.
+          </p>
+          <div className="mt-3">
+            <FundAdmin
+              token={editToken}
+              suggestedHeadcount={
+                (isSheet
+                  ? ev.sheet_rows.length
+                  : ev.jobs.reduce((n, j) => n + j.signups.length, 0)) || null
+              }
+              fund={
+                ev.fund
+                  ? {
+                      mode: ev.fund.mode,
+                      recipientName: ev.fund.recipient_name,
+                      totalCents: ev.fund.total_cents,
+                      shareCents: ev.fund.share_cents,
+                      headcount: ev.fund.headcount,
+                      method: ev.fund.method,
+                      handle: ev.fund.handle,
+                      note: ev.fund.note,
+                      contributions: ev.fund.contributions.map((c) => ({
+                        id: c.id,
+                        name: c.name,
+                        email: c.email,
+                        amountCents: c.amount_cents,
+                        confirmed: c.status === "confirmed",
+                      })),
+                    }
+                  : null
+              }
+            />
+          </div>
+        </section>
+      )}
 
       {isSheet ? (
         <section className="mt-8">

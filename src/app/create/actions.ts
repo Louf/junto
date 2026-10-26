@@ -182,7 +182,7 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
 
   // Optional fund. Amounts may be blank — the organizer can add them later,
   // and the public pay card stays hidden until they do.
-  if (String(formData.get("fund_enabled") ?? "") === "1") {
+  if (kind === "slots" && String(formData.get("fund_enabled") ?? "") === "1") {
     const method = String(formData.get("fund_method") ?? "");
     if (!isPaymentMethod(method)) {
       return { ok: false, error: "Pick a payment method for the fund" };

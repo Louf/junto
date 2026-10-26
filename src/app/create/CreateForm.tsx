@@ -712,184 +712,187 @@ export function CreateForm() {
           </Section>
         )}
 
-        <Section
-          step={3}
-          title="Chip in"
-          subtitle="Optional. If this event involves money, Junto can help you collect it — whether it's already been spent or not."
-        >
-          <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-            <input
-              type="checkbox"
-              checked={fundOn}
-              onChange={(e) => {
-                setDirty(true);
-                setFundOn(e.target.checked);
-              }}
-              className="size-4 accent-[var(--accent)]"
-            />
-            <span className="text-[15px]">Collect money for this event</span>
-          </label>
+        {/* Money is for slots events; a sheet's "Money" column covers it. */}
+        {kind === "slots" && (
+          <Section
+            step={3}
+            title="Chip in"
+            subtitle="Optional. If this event involves money, Junto can help you collect it — whether it's already been spent or not."
+          >
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
+              <input
+                type="checkbox"
+                checked={fundOn}
+                onChange={(e) => {
+                  setDirty(true);
+                  setFundOn(e.target.checked);
+                }}
+                className="size-4 accent-[var(--accent)]"
+              />
+              <span className="text-[15px]">Collect money for this event</span>
+            </label>
 
-          <AnimatePresence initial={false}>
-            {fundOn && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={panelTransition}
-                className="overflow-hidden"
-              >
-                <div className="flex flex-col gap-3 pt-1">
-                  <input type="hidden" name="fund_enabled" value="1" />
+            <AnimatePresence initial={false}>
+              {fundOn && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={panelTransition}
+                  className="overflow-hidden"
+                >
+                  <div className="flex flex-col gap-3 pt-1">
+                    <input type="hidden" name="fund_enabled" value="1" />
 
-                  <fieldset className="flex flex-col gap-2">
-                    <legend className="mb-2 text-sm font-medium">
-                      How you&rsquo;re collecting
-                    </legend>
-                    <div className="flex flex-col gap-2">
-                      {FUND_MODES.map((m) => (
-                        <label
-                          key={m}
-                          className={`cursor-pointer rounded-xl border px-4 py-3 transition ${
-                            fundMode === m
-                              ? "border-accent bg-accent/10"
-                              : "border-border text-foreground/80"
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="fund_mode"
-                            value={m}
-                            checked={fundMode === m}
-                            onChange={() => setFundMode(m)}
-                            className="sr-only"
-                          />
-                          <span
-                            className={`block text-[14px] ${fundMode === m ? "font-medium" : ""}`}
+                    <fieldset className="flex flex-col gap-2">
+                      <legend className="mb-2 text-sm font-medium">
+                        How you&rsquo;re collecting
+                      </legend>
+                      <div className="flex flex-col gap-2">
+                        {FUND_MODES.map((m) => (
+                          <label
+                            key={m}
+                            className={`cursor-pointer rounded-xl border px-4 py-3 transition ${
+                              fundMode === m
+                                ? "border-accent bg-accent/10"
+                                : "border-border text-foreground/80"
+                            }`}
                           >
-                            {MODE_LABELS[m]}
-                          </span>
-                          <span className="mt-0.5 block text-[13px] text-muted">
-                            {MODE_HINTS[m]}
-                          </span>
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-
-                  <Field
-                    label={
-                      fundMode === "reimburse"
-                        ? "Who paid up front"
-                        : "Who's collecting"
-                    }
-                  >
-                    <input
-                      name="fund_recipient_name"
-                      required={fundOn}
-                      maxLength={120}
-                      placeholder="Dave"
-                      className={inputClass}
-                    />
-                  </Field>
-
-                  <fieldset className="flex flex-col gap-2">
-                    <legend className="mb-2 text-sm font-medium">Pay by</legend>
-                    <div className="flex flex-wrap gap-2">
-                      {PAYMENT_METHODS.map((m) => (
-                        <label
-                          key={m}
-                          className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-[14px] transition ${
-                            fundMethod === m
-                              ? "border-accent bg-accent/10 font-medium"
-                              : "border-border text-foreground/80"
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="fund_method"
-                            value={m}
-                            checked={fundMethod === m}
-                            onChange={() => setFundMethod(m)}
-                            className="sr-only"
-                          />
-                          <PaymentIcon method={m} />
-                          {METHOD_LABELS[m]}
-                        </label>
-                      ))}
-                    </div>
-                  </fieldset>
-
-                  <Field label={`${METHOD_LABELS[fundMethod]} handle`}>
-                    <input
-                      name="fund_handle"
-                      required={fundOn}
-                      maxLength={120}
-                      onBlur={(e) => {
-                        e.target.value = normalizeHandle(
-                          fundMethod,
-                          e.target.value,
-                        );
-                      }}
-                      placeholder={METHOD_PLACEHOLDERS[fundMethod]}
-                      className={inputClass}
-                    />
-                    <span className="text-[13px] text-muted">
-                      {METHOD_HINTS[fundMethod]}
-                    </span>
-                  </Field>
-
-                  {fundMode === "split" ? (
-                    <div className="flex gap-3">
-                      <div className="flex-1">
-                        <Field label="Each person owes">
-                          <input
-                            name="fund_share"
-                            inputMode="decimal"
-                            placeholder="15.00"
-                            className={inputClass}
-                          />
-                        </Field>
+                            <input
+                              type="radio"
+                              name="fund_mode"
+                              value={m}
+                              checked={fundMode === m}
+                              onChange={() => setFundMode(m)}
+                              className="sr-only"
+                            />
+                            <span
+                              className={`block text-[14px] ${fundMode === m ? "font-medium" : ""}`}
+                            >
+                              {MODE_LABELS[m]}
+                            </span>
+                            <span className="mt-0.5 block text-[13px] text-muted">
+                              {MODE_HINTS[m]}
+                            </span>
+                          </label>
+                        ))}
                       </div>
-                      <div className="flex-1">
-                        <Field label="How many people">
-                          <input
-                            name="fund_headcount"
-                            inputMode="numeric"
-                            placeholder="8"
-                            className={inputClass}
-                          />
-                        </Field>
-                      </div>
-                    </div>
-                  ) : (
-                    /* Reimburse and goal both just need a total — people chip
-                       in what they can until it's met. */
+                    </fieldset>
+
                     <Field
-                      label={fundMode === "reimburse" ? "Total spent" : "Target"}
+                      label={
+                        fundMode === "reimburse"
+                          ? "Who paid up front"
+                          : "Who's collecting"
+                      }
                     >
                       <input
-                        name="fund_total"
-                        inputMode="decimal"
-                        placeholder="120.00"
+                        name="fund_recipient_name"
+                        required={fundOn}
+                        maxLength={120}
+                        placeholder="Dave"
                         className={inputClass}
                       />
                     </Field>
-                  )}
 
-                  <p className="text-[13px] leading-[1.5] text-muted">
-                    Don&rsquo;t know the numbers yet? Leave them blank — you can
-                    add them from the manage page once you do. Nobody sees a
-                    payment button until then.
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </Section>
+                    <fieldset className="flex flex-col gap-2">
+                      <legend className="mb-2 text-sm font-medium">Pay by</legend>
+                      <div className="flex flex-wrap gap-2">
+                        {PAYMENT_METHODS.map((m) => (
+                          <label
+                            key={m}
+                            className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-[14px] transition ${
+                              fundMethod === m
+                                ? "border-accent bg-accent/10 font-medium"
+                                : "border-border text-foreground/80"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="fund_method"
+                              value={m}
+                              checked={fundMethod === m}
+                              onChange={() => setFundMethod(m)}
+                              className="sr-only"
+                            />
+                            <PaymentIcon method={m} />
+                            {METHOD_LABELS[m]}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+
+                    <Field label={`${METHOD_LABELS[fundMethod]} handle`}>
+                      <input
+                        name="fund_handle"
+                        required={fundOn}
+                        maxLength={120}
+                        onBlur={(e) => {
+                          e.target.value = normalizeHandle(
+                            fundMethod,
+                            e.target.value,
+                          );
+                        }}
+                        placeholder={METHOD_PLACEHOLDERS[fundMethod]}
+                        className={inputClass}
+                      />
+                      <span className="text-[13px] text-muted">
+                        {METHOD_HINTS[fundMethod]}
+                      </span>
+                    </Field>
+
+                    {fundMode === "split" ? (
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <Field label="Each person owes">
+                            <input
+                              name="fund_share"
+                              inputMode="decimal"
+                              placeholder="15.00"
+                              className={inputClass}
+                            />
+                          </Field>
+                        </div>
+                        <div className="flex-1">
+                          <Field label="How many people">
+                            <input
+                              name="fund_headcount"
+                              inputMode="numeric"
+                              placeholder="8"
+                              className={inputClass}
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Reimburse and goal both just need a total — people chip
+                         in what they can until it's met. */
+                      <Field
+                        label={fundMode === "reimburse" ? "Total spent" : "Target"}
+                      >
+                        <input
+                          name="fund_total"
+                          inputMode="decimal"
+                          placeholder="120.00"
+                          className={inputClass}
+                        />
+                      </Field>
+                    )}
+
+                    <p className="text-[13px] leading-[1.5] text-muted">
+                      Don&rsquo;t know the numbers yet? Leave them blank — you can
+                      add them from the manage page once you do. Nobody sees a
+                      payment button until then.
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Section>
+        )}
 
         <Section
-          step={4}
+          step={kind === "slots" ? 4 : 3}
           title="Your email"
           subtitle="We'll email you a link to manage this event. No account, no password."
         >

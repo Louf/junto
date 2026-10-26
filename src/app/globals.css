@@ -23,7 +23,8 @@
   --card: #ffffff;
   /* Darker than it looks like it needs to be: small grey text on #f7f7f8. */
   --muted: #6b6b73;
-  --border: #e5e5e5;
+  /* Dividers and card edges: ~1.5:1 against card and page, visible not loud. */
+  --border: #d4d4da;
   --accent: #1d9e75;
   --accent-fg: #ffffff;
   --logo-accent: #1d9e75;
@@ -38,7 +39,7 @@
     --foreground: #ededed;
     --card: #111113;
     --muted: #9a9aaa;
-    --border: #1f1f23;
+    --border: #34343c;
     --accent: #35c294;
     --accent-fg: #04211a;
     --logo-accent: #43cfa1;
@@ -53,7 +54,7 @@
   --foreground: #ededed;
   --card: #111113;
   --muted: #9a9aaa;
-  --border: #1f1f23;
+  --border: #34343c;
   --accent: #35c294;
   --accent-fg: #04211a;
   --logo-accent: #43cfa1;

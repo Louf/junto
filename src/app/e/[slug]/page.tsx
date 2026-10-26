@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getEventBySlug, bannerPublicUrl } from "@/lib/events";
-import { formatEventDate } from "@/lib/dates";
+import { eventEndsAt, formatEventDate } from "@/lib/dates";
 import {
   GOAL_PRESETS,
   formatCents,
@@ -15,6 +15,9 @@ import { qrSvg } from "@/lib/qr";
 import { JobCard } from "./JobCard";
 import { FundCard } from "./FundCard";
 import { SheetTable } from "./SheetTable";
+import { AddToCalendar } from "./AddToCalendar";
+import { googleCalendarUrl } from "@/lib/ics";
+import { appUrl } from "@/lib/env";
 import { ThemeMenu } from "@/components/ThemeMenu";
 import { SheetLive } from "@/components/SheetLive";
 
@@ -192,12 +195,18 @@ export default async function EventPage({
           )}
 
           {!cancelled && (
-            <a
-              href={`/e/${ev.slug}/event.ics`}
-              className="mt-4 inline-flex h-10 items-center rounded-xl border border-border px-4 text-[14px] font-medium transition hover:bg-foreground/5"
-            >
-              Add to calendar
-            </a>
+            <AddToCalendar
+              icsHref={`/e/${ev.slug}/event.ics`}
+              googleHref={googleCalendarUrl({
+                summary: ev.name,
+                start: new Date(ev.event_at),
+                end: eventEndsAt(ev.event_at, ev.duration_minutes),
+                details: [ev.description?.trim(), `Details: ${appUrl()}/e/${ev.slug}`]
+                  .filter(Boolean)
+                  .join("\n\n"),
+                location: ev.location,
+              })}
+            />
           )}
         </div>
       </div>

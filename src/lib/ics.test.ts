@@ -1,7 +1,13 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { buildIcs, escapeText, foldLine, toIcsUtc } from "./ics.ts";
+import {
+  buildIcs,
+  escapeText,
+  foldLine,
+  googleCalendarUrl,
+  toIcsUtc,
+} from "./ics.ts";
 
 const START = new Date("2026-11-28T00:00:00.000Z");
 const END = new Date("2026-11-28T02:00:00.000Z");
@@ -168,5 +174,42 @@ describe("buildIcs", () => {
     for (const line of ics.split("\r\n")) {
       assert.ok(new TextEncoder().encode(line).length <= 75);
     }
+  });
+});
+
+describe("googleCalendarUrl", () => {
+  const url = (o: Partial<Parameters<typeof googleCalendarUrl>[0]> = {}) =>
+    new URL(
+      googleCalendarUrl({
+        summary: "Meal team",
+        start: START,
+        end: END,
+        ...o,
+      }),
+    );
+
+  test("points at Google Calendar's event template", () => {
+    const u = url();
+    assert.equal(u.origin, "https://calendar.google.com");
+    assert.equal(u.searchParams.get("action"), "TEMPLATE");
+  });
+
+  test("carries the title and the UTC start/end", () => {
+    const u = url();
+    assert.equal(u.searchParams.get("text"), "Meal team");
+    assert.equal(u.searchParams.get("dates"), "20261128T000000Z/20261128T020000Z");
+  });
+
+  test("encodes awkward characters rather than breaking the link", () => {
+    const u = url({ summary: "Food & drinks #1 / 50% off?" });
+    assert.equal(u.searchParams.get("text"), "Food & drinks #1 / 50% off?");
+  });
+
+  test("includes details and location only when given", () => {
+    assert.equal(url().searchParams.has("details"), false);
+    assert.equal(url().searchParams.has("location"), false);
+    const u = url({ details: "Bring a dish", location: "Church hall" });
+    assert.equal(u.searchParams.get("details"), "Bring a dish");
+    assert.equal(u.searchParams.get("location"), "Church hall");
   });
 });

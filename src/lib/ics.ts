@@ -113,3 +113,26 @@ export function buildIcs(event: IcsEvent): string {
   // CRLF is required, and a trailing one closes the final line.
   return lines.map(foldLine).join("\r\n") + "\r\n";
 }
+
+/**
+ * A link that opens Google Calendar with the event filled in, ready to save.
+ *
+ * The counterpart to the .ics file for people on Google Calendar, which can't
+ * open a downloaded calendar file in one step — Android especially.
+ */
+export function googleCalendarUrl(input: {
+  summary: string;
+  start: Date;
+  end: Date;
+  details?: string | null;
+  location?: string | null;
+}): string {
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: input.summary,
+    dates: `${toIcsUtc(input.start)}/${toIcsUtc(input.end)}`,
+  });
+  if (input.details) params.set("details", input.details);
+  if (input.location) params.set("location", input.location);
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}

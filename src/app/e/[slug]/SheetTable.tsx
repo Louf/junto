@@ -39,6 +39,10 @@ const SEARCH_FROM = 8;
 const OUTSTANDING =
   "shadow-[inset_0_0_0_100vmax_rgb(239_68_68/0.07)] dark:shadow-[inset_0_0_0_100vmax_rgb(248_113_113/0.1)]";
 
+/** The green counterpart, for the phone list's "Contributing" rows. */
+const CONTRIBUTING =
+  "shadow-[inset_0_0_0_100vmax_rgb(77_124_26/0.07)] dark:shadow-[inset_0_0_0_100vmax_rgb(151_196_89/0.08)]";
+
 function outstanding(row: Row, closed: boolean) {
   return !closed && row.ticks.length === 0;
 }
@@ -134,13 +138,17 @@ export function SheetTable({
           <ul>
             {visible.map((row) => {
               const open = openRow === row.id;
-              const ticked = columns.filter((c) => row.ticks.includes(c.id));
+              const contributing = row.ticks.length > 0;
               const panelId = `sheet-row-${row.id}`;
               return (
                 <li
                   key={row.id}
                   className={`border-t border-border transition-shadow first:border-t-0 ${
-                    outstanding(row, closed) ? OUTSTANDING : ""
+                    outstanding(row, closed)
+                      ? OUTSTANDING
+                      : contributing
+                        ? CONTRIBUTING
+                        : ""
                   }`}
                 >
                   <button
@@ -160,18 +168,17 @@ export function SheetTable({
                         </span>
                       )}
                     </span>
+                    {/* Just whether they're in; what they picked is a tap away. */}
                     <span
-                      className={`max-w-[45%] shrink-0 truncate text-[13px] ${
-                        outstanding(row, closed)
-                          ? "font-medium text-red-600 dark:text-red-400"
-                          : "text-muted"
+                      className={`shrink-0 text-[13px] font-medium ${
+                        contributing
+                          ? "text-success"
+                          : closed
+                            ? "text-muted"
+                            : "text-red-600 dark:text-red-400"
                       }`}
                     >
-                      {ticked.length > 0
-                        ? ticked.map((c) => c.label).join(" · ")
-                        : closed
-                          ? "—"
-                          : "Not yet"}
+                      {contributing ? "Contributing" : closed ? "—" : "Not yet"}
                     </span>
                     <svg
                       viewBox="0 0 20 20"

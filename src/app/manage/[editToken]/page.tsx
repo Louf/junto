@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { ThemeMenu } from "@/components/ThemeMenu";
 import { getEventByEditToken, bannerPublicUrl } from "@/lib/events";
 import { appUrl } from "@/lib/env";
 import { ShareCard } from "./ShareCard";
@@ -29,12 +30,15 @@ export default async function ManagePage({
 
   return (
     <main className="mx-auto w-full max-w-md px-6 pt-8 pb-16">
-      <Link
-        href={`/e/${ev.slug}`}
-        className="text-[13px] text-muted underline underline-offset-2"
-      >
-        View public page →
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href={`/e/${ev.slug}`}
+          className="text-[13px] text-muted underline underline-offset-2"
+        >
+          View public page →
+        </Link>
+        <ThemeMenu />
+      </div>
 
       {ev.cancelled_at && (
         <div className="mt-4 rounded-2xl bg-red-500/10 px-4 py-3 text-sm text-red-600 dark:text-red-400">

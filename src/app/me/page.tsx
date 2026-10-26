@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { ThemeMenu } from "@/components/ThemeMenu";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseService } from "@/lib/supabase/service";
 import { formatEventDate } from "@/lib/dates";
@@ -44,14 +45,17 @@ export default async function MePage() {
           </h1>
           <p className="mt-1 text-[14px] text-muted">{user.email}</p>
         </div>
-        <form action={signOut}>
-          <button
-            type="submit"
-            className="text-[13px] text-muted hover:text-foreground"
-          >
-            Sign out
-          </button>
-        </form>
+        <div className="flex items-center gap-3">
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="text-[13px] text-muted hover:text-foreground"
+            >
+              Sign out
+            </button>
+          </form>
+          <ThemeMenu />
+        </div>
       </div>
 
       <div className="mt-8 flex flex-col gap-3">

@@ -1,20 +1,39 @@
 @import "tailwindcss";
 
+/*
+ * Theme: follows the device unless someone picks one with the switch, which
+ * sets data-theme on <html> (see src/lib/theme.ts). The dark palette appears
+ * twice because a media query and an attribute can't share one selector.
+ */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:root:not([data-theme="light"]), :root:not([data-theme="light"]) *) {
+      @slot;
+    }
+  }
+}
+
 :root {
+  color-scheme: light;
   --background: #f7f7f8;
   --foreground: #0a0a0b;
   --card: #ffffff;
-  --muted: #8a8a91;
+  /* Darker than it looks like it needs to be: small grey text on #f7f7f8. */
+  --muted: #6b6b73;
   --border: #e5e5e5;
   --accent: #1d9e75;
   --accent-fg: #ffffff;
   --logo-accent: #1d9e75;
   --logo-dot: #bcbcc4;
-  --success: #639922;
+  --success: #4d7c1a;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --background: #09090b;
     --foreground: #ededed;
     --card: #111113;
@@ -26,6 +45,20 @@
     --logo-dot: #45454e;
     --success: #97c459;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #09090b;
+  --foreground: #ededed;
+  --card: #111113;
+  --muted: #9a9aaa;
+  --border: #1f1f23;
+  --accent: #35c294;
+  --accent-fg: #04211a;
+  --logo-accent: #43cfa1;
+  --logo-dot: #45454e;
+  --success: #97c459;
 }
 
 @theme inline {

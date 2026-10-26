@@ -14,6 +14,7 @@ import {
 import { qrSvg } from "@/lib/qr";
 import { JobCard } from "./JobCard";
 import { FundCard } from "./FundCard";
+import { ThemeMenu } from "@/components/ThemeMenu";
 
 export const revalidate = 0;
 
@@ -73,8 +74,8 @@ export default async function EventPage({
   if (!ev) notFound();
 
   const banner = bannerPublicUrl(ev.banner_path);
-  // The first card tucks up over a banner; without one it just starts the page.
-  const lead = banner ? "-mt-6" : "mt-6 md:mt-12";
+  // The first card tucks up over a banner; without one it sits under the top row.
+  const lead = banner ? "-mt-6" : "md:mt-6";
 
   const cancelled = Boolean(ev.cancelled_at);
   const pledgeCount = ev.fund?.contributions.length ?? 0;
@@ -117,6 +118,9 @@ export default async function EventPage({
 
   return (
     <main className="mx-auto w-full max-w-md pb-16">
+      <div className="flex justify-end px-6 pt-4 pb-3">
+        <ThemeMenu />
+      </div>
       {banner && (
         // eslint-disable-next-line @next/next/no-img-element
         <img

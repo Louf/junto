@@ -2,10 +2,15 @@ import Link from "next/link";
 import { AccountLink } from "@/components/AccountLink";
 import { JuntoMark } from "@/components/JuntoMark";
 import { SampleEventCard } from "@/components/SampleEventCard";
+import { ThemeMenu } from "@/components/ThemeMenu";
 
 export default function Home() {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-6 py-8 lg:px-8 lg:py-12">
+    <main className="relative mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-6 py-8 lg:px-8 lg:py-12">
+      {/* Level with the logo row; pinned to the page edge rather than the pitch column. */}
+      <div className="absolute right-6 top-8 lg:right-8 lg:top-12">
+        <ThemeMenu />
+      </div>
       <div className="flex flex-1 flex-col gap-12 lg:flex-row lg:items-center lg:gap-16 xl:gap-20">
         {/* LEFT — pitch */}
         <div className="flex w-full max-w-md flex-col">

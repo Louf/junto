@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ThemeMenu } from "@/components/ThemeMenu";
 import { useActionState } from "react";
 import { sendMagicLink } from "./actions";
 
@@ -9,12 +10,15 @@ export default function RecoverPage() {
 
   return (
     <main className="mx-auto w-full max-w-md px-6 pt-8 pb-14">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1 text-[15px] text-muted active:opacity-60"
-      >
-        ← Back
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1 text-[15px] text-muted active:opacity-60"
+        >
+          ← Back
+        </Link>
+        <ThemeMenu />
+      </div>
       <h1 className="mt-4 text-[32px] font-semibold leading-tight tracking-tight">
         Sign in
       </h1>

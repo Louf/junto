@@ -248,7 +248,7 @@ export default async function EventPage({
           </h2>
           {!cancelled && (
             <p className="mt-1 text-[14px] text-muted">
-              Find your name and tick what you&rsquo;ll do.
+              Tick what you&rsquo;ll bring or do.
             </p>
           )}
           <SheetLive eventId={ev.id} />

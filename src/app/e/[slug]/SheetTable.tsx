@@ -32,6 +32,18 @@ function applyChange(rows: Row[], c: Change): Row[] {
 const SEARCH_FROM = 8;
 
 /**
+ * A soft red wash over anyone who hasn't ticked anything yet, so the gaps are
+ * easy to spot. An inset shadow rather than a background so it can sit on top
+ * of the sticky name column's solid card colour.
+ */
+const OUTSTANDING =
+  "shadow-[inset_0_0_0_100vmax_rgb(239_68_68/0.07)] dark:shadow-[inset_0_0_0_100vmax_rgb(248_113_113/0.1)]";
+
+function outstanding(row: Row, closed: boolean) {
+  return !closed && row.ticks.length === 0;
+}
+
+/**
  * Whether the grid fits a phone without sideways scrolling, where a column
  * off the edge is easy to miss entirely. Judged from the data rather than the
  * screen so the server and the browser render the same markup.
@@ -89,14 +101,26 @@ export function SheetTable({
   return (
     <div className="overflow-hidden rounded-3xl border border-border bg-card">
       {rows.length >= SEARCH_FROM && (
-        <div className="border-b border-border p-3">
+        <div className="relative border-b border-border p-3">
+          <svg
+            viewBox="0 0 16 16"
+            aria-hidden
+            className="pointer-events-none absolute left-6.5 top-1/2 size-4 -translate-y-1/2 text-muted"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+          >
+            <circle cx="7" cy="7" r="4.5" />
+            <path d="m10.5 10.5 3 3" />
+          </svg>
           <input
             type="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Find your name"
             aria-label="Find your name"
-            className="w-full rounded-xl bg-foreground/[0.05] px-4 py-2.5 text-[16px] outline-none transition placeholder:text-muted focus:bg-foreground/[0.02] focus:ring-2 focus:ring-foreground/15"
+            className="w-full rounded-xl bg-foreground/[0.05] py-2.5 pl-10 pr-4 text-[16px] outline-none transition placeholder:text-muted focus:bg-foreground/[0.02] focus:ring-2 focus:ring-foreground/15"
           />
         </div>
       )}
@@ -108,10 +132,13 @@ export function SheetTable({
             {visible.map((row) => (
               <li
                 key={row.id}
-                className="border-t border-border px-4 py-3 first:border-t-0"
+                className={`border-t border-border px-4 py-3 transition-shadow first:border-t-0 ${
+                  outstanding(row, closed) ? OUTSTANDING : ""
+                }`}
               >
                 <span className="block text-[15px] font-medium leading-snug break-words">
                   {row.name}
+                  <Outstanding row={row} closed={closed} />
                 </span>
                 <NoteLine
                   row={row}
@@ -179,10 +206,13 @@ export function SheetTable({
                 <tr>
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 min-w-28 border-t border-border bg-card px-4 py-2.5 align-middle font-normal"
+                    className={`sticky left-0 z-10 min-w-28 border-t border-border bg-card px-4 py-2.5 align-middle font-normal transition-shadow ${
+                      outstanding(row, closed) ? OUTSTANDING : ""
+                    }`}
                   >
                     <span className="block text-[15px] font-medium leading-snug break-words">
                       {row.name}
+                      <Outstanding row={row} closed={closed} />
                     </span>
                     <NoteLine
                       row={row}
@@ -193,7 +223,9 @@ export function SheetTable({
                   {columns.map((c) => (
                     <td
                       key={c.id}
-                      className="border-t border-border px-2 py-1 text-center last:pr-4"
+                      className={`border-t border-border px-2 py-1 text-center transition-shadow last:pr-4 ${
+                        outstanding(row, closed) ? OUTSTANDING : ""
+                      }`}
                     >
                       <TickBox
                         label={`${row.name}: ${c.label}`}
@@ -256,6 +288,13 @@ export function SheetTable({
       )}
     </div>
   );
+}
+
+/** The tint is colour only; this says the same thing to a screen reader. */
+function Outstanding({ row, closed }: { row: Row; closed: boolean }) {
+  return outstanding(row, closed) ? (
+    <span className="sr-only">, nothing ticked yet</span>
+  ) : null;
 }
 
 function NoteLine({
@@ -358,7 +397,7 @@ function TickChip({
       className={`inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3.5 text-[14px] font-medium transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent/50 ${
         checked
           ? "border-accent bg-accent text-accent-fg"
-          : "border-border text-foreground/80"
+          : "border-border bg-card text-foreground/80"
       } ${disabled ? "opacity-60" : "cursor-pointer active:scale-[0.97]"}`}
     >
       <input

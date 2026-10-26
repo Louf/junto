@@ -16,6 +16,7 @@ import {
   normalizeHandle,
   parseAmountToCents,
 } from "@/lib/payments";
+import { MAX_ROWS, parseColumns, parseNames } from "@/lib/sheet";
 
 const jobSchema = z.object({
   title: z.string().min(1, "Job needs a title").max(120),
@@ -28,8 +29,9 @@ const formSchema = z.object({
   description: z.string().max(2000).optional().nullable(),
   event_at: z.string().min(1, "Pick a date and time"),
   creator_email: z.string().email("That email doesn't look right"),
-  jobs: z.array(jobSchema).min(1, "Add at least one job"),
 });
+
+const jobsSchema = z.array(jobSchema).min(1, "Add at least one job");
 
 export type CreateState =
   | { ok: false; error: string }
@@ -41,7 +43,6 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
     description: String(formData.get("description") ?? "").trim() || null,
     event_at: String(formData.get("event_at") ?? ""),
     creator_email: String(formData.get("creator_email") ?? "").trim().toLowerCase(),
-    jobs: JSON.parse(String(formData.get("jobs") ?? "[]")),
   };
 
   const parsed = formSchema.safeParse(raw);
@@ -49,6 +50,33 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid input" };
   }
   const data = parsed.data;
+
+  // A slots event needs jobs; a sheet needs columns and, usually, names.
+  const kind = String(formData.get("kind") ?? "") === "sheet" ? "sheet" : "slots";
+  let jobs: z.infer<typeof jobsSchema> = [];
+  let columns: string[] = [];
+  let names: string[] = [];
+
+  if (kind === "slots") {
+    const parsedJobs = jobsSchema.safeParse(
+      JSON.parse(String(formData.get("jobs") ?? "[]")),
+    );
+    if (!parsedJobs.success) {
+      return { ok: false, error: parsedJobs.error.issues[0]?.message ?? "Invalid jobs" };
+    }
+    jobs = parsedJobs.data;
+  } else {
+    const parsedColumns = parseColumns(
+      JSON.parse(String(formData.get("columns") ?? "[]")),
+    );
+    if (!parsedColumns.ok) return { ok: false, error: parsedColumns.error };
+    columns = parsedColumns.labels;
+
+    names = parseNames(String(formData.get("names") ?? ""));
+    if (names.length > MAX_ROWS) {
+      return { ok: false, error: `Up to ${MAX_ROWS} names per sheet` };
+    }
+  }
 
   const eventAtIso = new Date(data.event_at).toISOString();
 
@@ -102,6 +130,7 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
   const { data: event, error: insertErr } = await supa
     .from("events")
     .insert({
+      kind,
       name: data.name,
       description: data.description,
       event_at: eventAtIso,
@@ -119,17 +148,36 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
     return { ok: false, error: insertErr?.message ?? "Could not create event" };
   }
 
-  const jobRows = data.jobs.map((j, i) => ({
-    event_id: event.id,
-    title: j.title,
-    description: j.description ?? null,
-    capacity: j.capacity,
-    sort_order: i,
-  }));
-  const { error: jobsErr } = await supa.from("jobs").insert(jobRows);
-  if (jobsErr) {
-    await supa.from("events").delete().eq("id", event.id);
-    return { ok: false, error: `Could not save jobs: ${jobsErr.message}` };
+  if (kind === "slots") {
+    const jobRows = jobs.map((j, i) => ({
+      event_id: event.id,
+      title: j.title,
+      description: j.description ?? null,
+      capacity: j.capacity,
+      sort_order: i,
+    }));
+    const { error: jobsErr } = await supa.from("jobs").insert(jobRows);
+    if (jobsErr) {
+      await supa.from("events").delete().eq("id", event.id);
+      return { ok: false, error: `Could not save jobs: ${jobsErr.message}` };
+    }
+  } else {
+    const { error: colErr } = await supa.from("sheet_columns").insert(
+      columns.map((label, i) => ({ event_id: event.id, label, sort_order: i })),
+    );
+    const { error: rowErr } =
+      names.length > 0
+        ? await supa.from("sheet_rows").insert(
+            names.map((name, i) => ({ event_id: event.id, name, sort_order: i })),
+          )
+        : { error: null };
+    if (colErr || rowErr) {
+      await supa.from("events").delete().eq("id", event.id);
+      return {
+        ok: false,
+        error: `Could not save the sheet: ${(colErr ?? rowErr)?.message}`,
+      };
+    }
   }
 
   // Optional fund. Amounts may be blank — the organizer can add them later,

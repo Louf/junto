@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ThemeMenu } from "@/components/ThemeMenu";
+import { SheetLive } from "@/components/SheetLive";
 import { getEventByEditToken, bannerPublicUrl } from "@/lib/events";
 import { appUrl } from "@/lib/env";
 import { ShareCard } from "./ShareCard";
@@ -10,6 +11,7 @@ import { EditEventCard } from "./EditEventCard";
 import { FundAdmin } from "./FundAdmin";
 import { CancelEventCard } from "./CancelEventCard";
 import { DuplicateEventCard } from "./DuplicateEventCard";
+import { SheetAdmin } from "./SheetAdmin";
 
 export const revalidate = 0;
 
@@ -27,6 +29,15 @@ export default async function ManagePage({
 
   const shareUrl = `${appUrl()}/e/${ev.slug}`;
   const banner = bannerPublicUrl(ev.banner_path);
+  const isSheet = ev.kind === "sheet";
+
+  const plural = (n: number, one: string, many: string) =>
+    `${n} ${n === 1 ? one : many}`;
+  const shapeLabel = isSheet
+    ? `the same ${plural(ev.sheet_rows.length, "name", "names")} and ${plural(ev.sheet_columns.length, "column", "columns")}`
+    : ev.jobs.length === 1
+      ? "job"
+      : `${ev.jobs.length} jobs`;
 
   return (
     <main className="mx-auto w-full max-w-md px-6 pt-8 pb-16">
@@ -50,7 +61,8 @@ export default async function ManagePage({
       {welcome && !ev.cancelled_at && (
         <div className="mt-4 rounded-2xl bg-success/15 text-success px-4 py-3 text-sm">
           Your event is live. Bookmark this page — it&rsquo;s how you&rsquo;ll
-          edit later, add jobs, and collect money if the event needs any.
+          edit later, {isSheet ? "change the sheet" : "add jobs"}, and collect
+          money if the event needs any.
         </div>
       )}
 
@@ -84,7 +96,9 @@ export default async function ManagePage({
           <FundAdmin
             token={editToken}
             suggestedHeadcount={
-              ev.jobs.reduce((n, j) => n + j.signups.length, 0) || null
+              (isSheet
+                ? ev.sheet_rows.length
+                : ev.jobs.reduce((n, j) => n + j.signups.length, 0)) || null
             }
             fund={
               ev.fund
@@ -111,37 +125,69 @@ export default async function ManagePage({
         </div>
       </section>
 
-      <section className="mt-8">
-        <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
-          Jobs & signups
-        </h2>
-        <div className="mt-3 flex flex-col gap-3">
-          {ev.jobs.map((job) => (
-            <JobAdmin
-              key={job.id}
+      {isSheet ? (
+        <section className="mt-8">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
+            Sheet
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            To tick boxes for someone, use the public page like everyone else.
+          </p>
+          <SheetLive eventId={ev.id} />
+          <div className="mt-3">
+            <SheetAdmin
               token={editToken}
-              job={{
-                id: job.id,
-                title: job.title,
-                description: job.description,
-                capacity: job.capacity,
-                signups: job.signups.map((s) => ({
-                  id: s.id,
-                  name: s.name,
-                  email: s.email,
-                  note: s.note,
-                })),
-              }}
+              columns={ev.sheet_columns.map((c) => ({
+                id: c.id,
+                label: c.label,
+                count: ev.sheet_rows.filter((r) => r.ticks.includes(c.id)).length,
+              }))}
+              rows={ev.sheet_rows.map((r) => ({
+                id: r.id,
+                name: r.name,
+                note: r.note,
+                selfAdded: r.self_added,
+                ticked: ev.sheet_columns
+                  .filter((c) => r.ticks.includes(c.id))
+                  .map((c) => c.label),
+              }))}
             />
-          ))}
-          <AddJobForm token={editToken} />
-        </div>
-      </section>
+          </div>
+        </section>
+      ) : (
+        <section className="mt-8">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
+            Jobs & signups
+          </h2>
+          <div className="mt-3 flex flex-col gap-3">
+            {ev.jobs.map((job) => (
+              <JobAdmin
+                key={job.id}
+                token={editToken}
+                job={{
+                  id: job.id,
+                  title: job.title,
+                  description: job.description,
+                  capacity: job.capacity,
+                  signups: job.signups.map((s) => ({
+                    id: s.id,
+                    name: s.name,
+                    email: s.email,
+                    note: s.note,
+                  })),
+                }}
+              />
+            ))}
+            <AddJobForm token={editToken} />
+          </div>
+        </section>
+      )}
 
       <section className="mt-10 flex flex-col gap-3">
         <DuplicateEventCard
           token={editToken}
-          jobCount={ev.jobs.length}
+          shapeLabel={shapeLabel}
+          freshLabel={isSheet ? "Ticks and notes" : "Signups"}
           hasFund={Boolean(ev.fund)}
         />
         <CancelEventCard

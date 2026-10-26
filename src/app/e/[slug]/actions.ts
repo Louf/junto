@@ -9,6 +9,13 @@ import { METHOD_LABELS, formatCents, isPaymentMethod } from "@/lib/payments";
 import { appUrl } from "@/lib/env";
 import { formatEventDate } from "@/lib/dates";
 import { callerKey, hit, retryMessage } from "@/lib/rateLimit";
+import { announceSheetChange } from "@/lib/sheetLive";
+import {
+  MAX_ROWS,
+  cleanName,
+  cleanNote,
+  nameKey,
+} from "@/lib/sheet";
 
 const schema = z.object({
   job_id: z.string().uuid(),
@@ -217,5 +224,179 @@ export async function pledgeContribution(
     }).catch((e) => console.error("receipt email failed", e));
   }
 
+  return { ok: true };
+}
+
+// =====================
+// Contribution sheet
+// =====================
+
+export type SheetResult = { ok: true } | { ok: false; error: string };
+
+const uuid = z.string().uuid();
+
+type SheetEvent = { id: string; slug: string; kind: string; cancelled_at: string | null };
+
+/** Loads the event a sheet row belongs to, if it's an open sheet. */
+async function openSheetForRow(
+  rowId: string,
+): Promise<{ ev: SheetEvent } | { error: string }> {
+  const supa = supabaseService();
+  const { data } = await supa
+    .from("sheet_rows")
+    .select("id, event:events(id, slug, kind, cancelled_at)")
+    .eq("id", rowId)
+    .maybeSingle();
+  const ev = (data?.event ?? null) as SheetEvent | null;
+  if (!ev || ev.kind !== "sheet") return { error: "That name isn't on this sheet" };
+  // The UI hides the boxes, but a stale page could still post.
+  if (ev.cancelled_at) return { error: "This event has been cancelled" };
+  return { ev };
+}
+
+async function throttle(scope: string, limit: number, windowSeconds: number) {
+  const limited = await hit(await callerKey(scope), limit, windowSeconds);
+  return limited.ok
+    ? null
+    : `Too many changes. ${retryMessage(limited.retryAfterSeconds)}`;
+}
+
+/**
+ * Ticks or unticks one box. Anyone with the link can do this for any row —
+ * the same trust as a paper sheet — so it's throttled but not authorized.
+ */
+export async function setTick(
+  rowId: string,
+  columnId: string,
+  ticked: boolean,
+): Promise<SheetResult> {
+  if (!uuid.safeParse(rowId).success || !uuid.safeParse(columnId).success) {
+    return { ok: false, error: "Invalid request" };
+  }
+
+  // Generous: someone filling in a whole row taps several boxes in a row.
+  const slow = await throttle("sheet-tick", 60, 60);
+  if (slow) return { ok: false, error: slow };
+
+  const found = await openSheetForRow(rowId);
+  if ("error" in found) return { ok: false, error: found.error };
+
+  const supa = supabaseService();
+  const { data: column } = await supa
+    .from("sheet_columns")
+    .select("event_id")
+    .eq("id", columnId)
+    .maybeSingle();
+  if (column?.event_id !== found.ev.id) {
+    return { ok: false, error: "That column isn't on this sheet" };
+  }
+
+  const { error } = ticked
+    ? await supa
+        .from("sheet_ticks")
+        .upsert(
+          { row_id: rowId, column_id: columnId },
+          { onConflict: "row_id,column_id", ignoreDuplicates: true },
+        )
+    : await supa
+        .from("sheet_ticks")
+        .delete()
+        .eq("row_id", rowId)
+        .eq("column_id", columnId);
+  if (error) return { ok: false, error: "Couldn't save that. Try again." };
+
+  revalidatePath(`/e/${found.ev.slug}`);
+  announceSheetChange(found.ev.id);
+  return { ok: true };
+}
+
+export async function setRowNote(
+  rowId: string,
+  note: string,
+): Promise<SheetResult> {
+  if (!uuid.safeParse(rowId).success) {
+    return { ok: false, error: "Invalid request" };
+  }
+
+  const slow = await throttle("sheet-note", 20, 60);
+  if (slow) return { ok: false, error: slow };
+
+  const found = await openSheetForRow(rowId);
+  if ("error" in found) return { ok: false, error: found.error };
+
+  const supa = supabaseService();
+  const { error } = await supa
+    .from("sheet_rows")
+    .update({ note: cleanNote(note) })
+    .eq("id", rowId);
+  if (error) return { ok: false, error: "Couldn't save your note. Try again." };
+
+  revalidatePath(`/e/${found.ev.slug}`);
+  announceSheetChange(found.ev.id);
+  return { ok: true };
+}
+
+/** Someone who isn't on the list adds themselves, with their ticks and note. */
+export async function addSheetRow(
+  eventId: string,
+  input: { name: string; note: string; columnIds: string[] },
+): Promise<SheetResult> {
+  if (!uuid.safeParse(eventId).success) {
+    return { ok: false, error: "Invalid request" };
+  }
+  const name = cleanName(input.name);
+  if (!name) return { ok: false, error: "Add your name" };
+
+  // Stricter than ticking: each call grows the sheet.
+  const slow = await throttle("sheet-add", 5, 600);
+  if (slow) return { ok: false, error: slow };
+
+  const supa = supabaseService();
+  const { data: ev } = await supa
+    .from("events")
+    .select("id, slug, kind, cancelled_at, sheet_rows(name, sort_order), sheet_columns(id)")
+    .eq("id", eventId)
+    .maybeSingle();
+  if (!ev || ev.kind !== "sheet") return { ok: false, error: "Sheet not found" };
+  if (ev.cancelled_at) return { ok: false, error: "This event has been cancelled" };
+
+  const rows = ev.sheet_rows ?? [];
+  if (rows.length >= MAX_ROWS) {
+    return { ok: false, error: "This sheet is full. Ask the organizer to add you." };
+  }
+  const already = rows.find((r) => nameKey(r.name) === nameKey(name));
+  if (already) {
+    return {
+      ok: false,
+      error: `${already.name} is already on the sheet. Find the name above and tick there.`,
+    };
+  }
+
+  const nextSort = rows.reduce((m, r) => Math.max(m, r.sort_order), -1) + 1;
+  const { data: row, error } = await supa
+    .from("sheet_rows")
+    .insert({
+      event_id: ev.id,
+      name,
+      note: cleanNote(input.note),
+      self_added: true,
+      sort_order: nextSort,
+    })
+    .select("id")
+    .single();
+  if (error || !row) return { ok: false, error: "Couldn't add you. Try again." };
+
+  // Only columns that really belong to this sheet.
+  const valid = new Set((ev.sheet_columns ?? []).map((c) => c.id));
+  const ticks = [...new Set(input.columnIds)]
+    .filter((id) => valid.has(id))
+    .map((column_id) => ({ row_id: row.id, column_id }));
+  if (ticks.length > 0) {
+    const { error: tickErr } = await supa.from("sheet_ticks").insert(ticks);
+    if (tickErr) console.error("sheet ticks insert failed", tickErr);
+  }
+
+  revalidatePath(`/e/${ev.slug}`);
+  announceSheetChange(ev.id);
   return { ok: true };
 }

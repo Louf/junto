@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { createEvent, type CreateState } from "./actions";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { EventCardPreview } from "@/components/EventCardPreview";
+import { SheetPreview } from "@/components/SheetPreview";
 import { PaymentIcon } from "@/components/PaymentIcon";
 import {
   DEFAULT_DURATION_MINUTES,
@@ -31,6 +32,17 @@ import {
   type FundMode,
   type PaymentMethod,
 } from "@/lib/payments";
+import {
+  DEFAULT_COLUMNS,
+  LABEL_MAX,
+  MAX_COLUMNS,
+  MAX_ROWS,
+  parseNames,
+} from "@/lib/sheet";
+
+type EventKind = "slots" | "sheet";
+
+type ColumnDraft = { id: string; label: string };
 
 type JobDraft = {
   id: string;
@@ -59,7 +71,30 @@ function newJob(id: string = nanoid(8)): JobDraft {
   return { id, title: "", description: "", capacity: 1 };
 }
 
+// Deterministic for the same hydration reason as FIRST_JOB_ID.
+const INITIAL_COLUMNS: ColumnDraft[] = DEFAULT_COLUMNS.map((label, i) => ({
+  id: `col-${i}`,
+  label,
+}));
+
+const KIND_OPTIONS: { value: EventKind; label: string; hint: string }[] = [
+  {
+    value: "slots",
+    label: "Signup slots",
+    hint: "Jobs with a set number of spots, like 3 people on setup.",
+  },
+  {
+    value: "sheet",
+    label: "Contribution sheet",
+    hint: "A list of names. Everyone ticks what they\u2019ll bring or do.",
+  },
+];
+
 export function CreateForm() {
+  const [kind, setKind] = useState<EventKind>("slots");
+  const [columns, setColumns] = useState<ColumnDraft[]>(INITIAL_COLUMNS);
+  const [namesText, setNamesText] = useState("");
+  const [sheetError, setSheetError] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [jobs, setJobs] = useState<JobDraft[]>(() => [newJob(FIRST_JOB_ID)]);
   const [openJobId, setOpenJobId] = useState<string | null>(() => jobs[0].id);
@@ -86,6 +121,7 @@ export function CreateForm() {
   const errorRef = useRef<HTMLDivElement>(null);
   const dateFieldRef = useRef<HTMLDivElement>(null);
   const jobsRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const titleRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const pendingFocus = useRef<string | null>(null);
@@ -167,6 +203,24 @@ export function CreateForm() {
     delete titleRefs.current[id];
   }
 
+  function updateColumn(id: string, label: string) {
+    setDirty(true);
+    setSheetError(null);
+    setColumns((cs) => cs.map((c) => (c.id === id ? { ...c, label } : c)));
+  }
+
+  function addColumn() {
+    setDirty(true);
+    setColumns((cs) =>
+      cs.length >= MAX_COLUMNS ? cs : [...cs, { id: nanoid(8), label: "" }],
+    );
+  }
+
+  function removeColumn(id: string) {
+    setDirty(true);
+    setColumns((cs) => (cs.length <= 1 ? cs : cs.filter((c) => c.id !== id)));
+  }
+
   function onBannerChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     setBannerPreview(null);
@@ -204,28 +258,46 @@ export function CreateForm() {
     }
     setDateError(false);
 
-    // Collapsed job inputs are unmounted, so native validation can't reach
-    // them — check here and reopen the offender instead.
-    const untitled = jobs.find((j) => !j.title.trim());
-    if (untitled) {
-      setJobError("Every job needs a title.");
-      pendingFocus.current = untitled.id;
-      setOpenJobId(untitled.id);
-      jobsRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
-      return;
-    }
-    setJobError(null);
+    fd.set("kind", kind);
 
-    fd.set(
-      "jobs",
-      JSON.stringify(
-        jobs.map(({ title, description, capacity }) => ({
-          title: title.trim(),
-          description,
-          capacity,
-        })),
-      ),
-    );
+    if (kind === "sheet") {
+      const labels = columns.map((c) => c.label.trim()).filter(Boolean);
+      if (labels.length === 0) {
+        setSheetError("Add at least one column.");
+        sheetRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+        return;
+      }
+      if (parsedNames.length > MAX_ROWS) {
+        setSheetError(`Up to ${MAX_ROWS} names per sheet.`);
+        sheetRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+        return;
+      }
+      setSheetError(null);
+      fd.set("columns", JSON.stringify(labels));
+    } else {
+      // Collapsed job inputs are unmounted, so native validation can't reach
+      // them — check here and reopen the offender instead.
+      const untitled = jobs.find((j) => !j.title.trim());
+      if (untitled) {
+        setJobError("Every job needs a title.");
+        pendingFocus.current = untitled.id;
+        setOpenJobId(untitled.id);
+        jobsRef.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+        return;
+      }
+      setJobError(null);
+
+      fd.set(
+        "jobs",
+        JSON.stringify(
+          jobs.map(({ title, description, capacity }) => ({
+            title: title.trim(),
+            description,
+            capacity,
+          })),
+        ),
+      );
+    }
     fd.set("event_at", eventAt.toISOString());
     // The picker works in the organizer's local time, so their zone is the
     // one the event actually happens in.
@@ -234,24 +306,35 @@ export function CreateForm() {
   }
 
   const totalSlots = jobs.reduce((n, j) => n + j.capacity, 0);
+  const parsedNames = parseNames(namesText);
 
-  const previewCard = (
-    <EventCardPreview
-      title={name.trim() || "Your event"}
-      titleIsPlaceholder={!name.trim()}
-      dateLabel={eventAt ? format(eventAt, "MMM d, h:mm a") : null}
-      jobs={jobs.map((j) => ({
-        id: j.id,
-        title: j.title.trim(),
-        capacity: j.capacity,
-        filled: 0,
-      }))}
-      summary={`${totalSlots} ${totalSlots === 1 ? "slot" : "slots"} across ${
-        jobs.length
-      } ${jobs.length === 1 ? "job" : "jobs"}`}
-      ariaLabel="Live preview of the event you're creating."
-    />
-  );
+  const previewCard =
+    kind === "sheet" ? (
+      <SheetPreview
+        title={name.trim() || "Your event"}
+        titleIsPlaceholder={!name.trim()}
+        dateLabel={eventAt ? format(eventAt, "MMM d, h:mm a") : null}
+        columns={columns.map((c) => c.label.trim()).filter(Boolean)}
+        names={parsedNames}
+        ariaLabel="Live preview of the contribution sheet you're creating."
+      />
+    ) : (
+      <EventCardPreview
+        title={name.trim() || "Your event"}
+        titleIsPlaceholder={!name.trim()}
+        dateLabel={eventAt ? format(eventAt, "MMM d, h:mm a") : null}
+        jobs={jobs.map((j) => ({
+          id: j.id,
+          title: j.title.trim(),
+          capacity: j.capacity,
+          filled: 0,
+        }))}
+        summary={`${totalSlots} ${totalSlots === 1 ? "slot" : "slots"} across ${
+          jobs.length
+        } ${jobs.length === 1 ? "job" : "jobs"}`}
+        ariaLabel="Live preview of the event you're creating."
+      />
+    );
 
   return (
     <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-14">
@@ -260,6 +343,44 @@ export function CreateForm() {
         onInput={() => setDirty(true)}
         className="flex flex-col gap-9"
       >
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-2 text-sm font-medium">
+            What kind of event?
+          </legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {KIND_OPTIONS.map((o) => (
+              <label
+                key={o.value}
+                className={`cursor-pointer rounded-2xl border px-4 py-3 transition ${
+                  kind === o.value
+                    ? "border-accent bg-accent/10"
+                    : "border-border text-foreground/80 hover:bg-foreground/[0.03]"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="kind_choice"
+                  value={o.value}
+                  checked={kind === o.value}
+                  onChange={() => {
+                    setDirty(true);
+                    setKind(o.value);
+                  }}
+                  className="sr-only"
+                />
+                <span
+                  className={`block text-[15px] ${kind === o.value ? "font-semibold" : "font-medium"}`}
+                >
+                  {o.label}
+                </span>
+                <span className="mt-0.5 block text-[13px] leading-[1.45] text-muted">
+                  {o.hint}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
         <Section step={1} title="Event">
           <Field label="Name">
             <input
@@ -361,163 +482,234 @@ export function CreateForm() {
           </Field>
         </Section>
 
-        <Section
-          step={2}
-          title="Jobs"
-          subtitle="Each job has a number of slots people can claim."
-        >
-          <div ref={jobsRef} className="flex flex-col gap-2.5">
-            <AnimatePresence initial={false}>
-              {jobs.map((job, i) => {
-                const isOpen = openJobId === job.id;
-                const panelId = `job-panel-${job.id}`;
-
-                return (
-                  <motion.div
-                    key={job.id}
-                    layout
-                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
-                    transition={panelTransition}
-                    className="rounded-2xl border border-border bg-card px-4 py-3"
-                  >
-                    <div className="flex items-center gap-2">
+        {kind === "sheet" ? (
+          <Section
+            step={2}
+            title="Sheet"
+            subtitle="Everyone on the list finds their name and ticks what they’ll do."
+          >
+            <div ref={sheetRef} className="flex flex-col gap-2">
+              <span className="text-sm font-medium">Ways to contribute</span>
+              <div className="flex flex-col gap-2">
+                {columns.map((c, i) => (
+                  <div key={c.id} className="flex items-center gap-2">
+                    <input
+                      value={c.label}
+                      onChange={(e) => updateColumn(c.id, e.target.value)}
+                      maxLength={LABEL_MAX}
+                      placeholder={i === 0 ? "Food" : "Another way to help"}
+                      aria-label={`Column ${i + 1}`}
+                      className={inputClass}
+                    />
+                    {columns.length > 1 && (
                       <button
                         type="button"
-                        onClick={() => setOpenJobId(isOpen ? null : job.id)}
-                        aria-expanded={isOpen}
-                        aria-controls={panelId}
-                        className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
+                        onClick={() => removeColumn(c.id)}
+                        aria-label={`Remove column ${c.label.trim() || i + 1}`}
+                        className="size-11 shrink-0 rounded-xl text-muted transition hover:bg-foreground/5 active:scale-95"
                       >
-                        <span className="shrink-0 text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
-                          Job {i + 1}
-                        </span>
-
-                        {!isOpen && (
-                          <>
-                            <span
-                              className={`truncate text-[14px] font-medium ${
-                                job.title.trim() ? "" : "text-muted"
-                              }`}
-                            >
-                              {job.title.trim() || "Untitled job"}
-                            </span>
-                            <span className="ml-auto shrink-0 text-[12px] text-muted tabular-nums">
-                              {job.capacity}{" "}
-                              {job.capacity === 1 ? "slot" : "slots"}
-                            </span>
-                          </>
-                        )}
-
-                        <svg
-                          viewBox="0 0 20 20"
-                          aria-hidden
-                          className={`size-4 shrink-0 text-muted transition-transform duration-200 ${
-                            isOpen ? "rotate-180" : ""
-                          } ${isOpen ? "ml-auto" : ""}`}
-                        >
-                          <path
-                            d="M5 7.5L10 12.5L15 7.5"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.75"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        ✕
                       </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {columns.length < MAX_COLUMNS && (
+                <button
+                  type="button"
+                  onClick={addColumn}
+                  className="h-11 rounded-2xl border border-dashed border-border text-[14px] text-foreground/80 transition hover:bg-foreground/5 active:scale-[0.99]"
+                >
+                  + Add a column
+                </button>
+              )}
+            </div>
 
-                      {jobs.length > 1 && (
+            <Field label="Who's on the team" optional>
+              <textarea
+                name="names"
+                rows={6}
+                value={namesText}
+                onChange={(e) => {
+                  setSheetError(null);
+                  setNamesText(e.target.value);
+                }}
+                placeholder={"Sarah Jones\nMike Chen\nPriya Patel"}
+                className={inputClass}
+              />
+              <span className="text-[13px] text-muted">
+                One name per line, or paste a list.
+                {parsedNames.length > 0 &&
+                  ` ${parsedNames.length} ${parsedNames.length === 1 ? "name" : "names"}.`}{" "}
+                Anyone missing can add themselves from the link.
+              </span>
+            </Field>
+
+            {sheetError && (
+              <p role="alert" className="text-[13px] text-red-600 dark:text-red-400">
+                {sheetError}
+              </p>
+            )}
+          </Section>
+        ) : (
+          <Section
+            step={2}
+            title="Jobs"
+            subtitle="Each job has a number of slots people can claim."
+          >
+            <div ref={jobsRef} className="flex flex-col gap-2.5">
+              <AnimatePresence initial={false}>
+                {jobs.map((job, i) => {
+                  const isOpen = openJobId === job.id;
+                  const panelId = `job-panel-${job.id}`;
+
+                  return (
+                    <motion.div
+                      key={job.id}
+                      layout
+                      initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.96 }}
+                      transition={panelTransition}
+                      className="rounded-2xl border border-border bg-card px-4 py-3"
+                    >
+                      <div className="flex items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => removeJob(job.id)}
-                          aria-label={`Remove job ${i + 1}`}
-                          className="size-11 shrink-0 rounded-xl text-muted transition hover:bg-foreground/5 active:scale-95"
+                          onClick={() => setOpenJobId(isOpen ? null : job.id)}
+                          aria-expanded={isOpen}
+                          aria-controls={panelId}
+                          className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
                         >
-                          ✕
-                        </button>
-                      )}
-                    </div>
+                          <span className="shrink-0 text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
+                            Job {i + 1}
+                          </span>
 
-                    <AnimatePresence initial={false}>
-                      {isOpen && (
-                        <motion.div
-                          key="panel"
-                          id={panelId}
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={panelTransition}
-                          className="overflow-hidden"
-                        >
-                          <div className="flex flex-col gap-3 pt-3">
-                            <Field label="Title">
-                              <input
-                                ref={(el) => {
-                                  titleRefs.current[job.id] = el;
-                                }}
-                                value={job.title}
-                                onChange={(e) =>
-                                  updateJob(job.id, { title: e.target.value })
-                                }
-                                maxLength={120}
-                                placeholder="Setup crew"
-                                className={inputClass}
-                              />
-                            </Field>
-
-                            <Field label="Details" optional>
-                              <textarea
-                                value={job.description}
-                                onChange={(e) =>
-                                  updateJob(job.id, {
-                                    description: e.target.value,
-                                  })
-                                }
-                                rows={2}
-                                maxLength={1000}
-                                placeholder="Anything people should know before claiming"
-                                className={inputClass}
-                              />
-                            </Field>
-
-                            <div className="flex items-center justify-between gap-3">
-                              <span className="text-sm text-muted">
-                                Slots needed
+                          {!isOpen && (
+                            <>
+                              <span
+                                className={`truncate text-[14px] font-medium ${
+                                  job.title.trim() ? "" : "text-muted"
+                                }`}
+                              >
+                                {job.title.trim() || "Untitled job"}
                               </span>
-                              <Stepper
-                                label={`Slots needed for job ${i + 1}`}
-                                value={job.capacity}
-                                onChange={(v) =>
-                                  updateJob(job.id, { capacity: v })
-                                }
-                              />
+                              <span className="ml-auto shrink-0 text-[12px] text-muted tabular-nums">
+                                {job.capacity}{" "}
+                                {job.capacity === 1 ? "slot" : "slots"}
+                              </span>
+                            </>
+                          )}
+
+                          <svg
+                            viewBox="0 0 20 20"
+                            aria-hidden
+                            className={`size-4 shrink-0 text-muted transition-transform duration-200 ${
+                              isOpen ? "rotate-180" : ""
+                            } ${isOpen ? "ml-auto" : ""}`}
+                          >
+                            <path
+                              d="M5 7.5L10 12.5L15 7.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.75"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+
+                        {jobs.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeJob(job.id)}
+                            aria-label={`Remove job ${i + 1}`}
+                            className="size-11 shrink-0 rounded-xl text-muted transition hover:bg-foreground/5 active:scale-95"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      <AnimatePresence initial={false}>
+                        {isOpen && (
+                          <motion.div
+                            key="panel"
+                            id={panelId}
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={panelTransition}
+                            className="overflow-hidden"
+                          >
+                            <div className="flex flex-col gap-3 pt-3">
+                              <Field label="Title">
+                                <input
+                                  ref={(el) => {
+                                    titleRefs.current[job.id] = el;
+                                  }}
+                                  value={job.title}
+                                  onChange={(e) =>
+                                    updateJob(job.id, { title: e.target.value })
+                                  }
+                                  maxLength={120}
+                                  placeholder="Setup crew"
+                                  className={inputClass}
+                                />
+                              </Field>
+
+                              <Field label="Details" optional>
+                                <textarea
+                                  value={job.description}
+                                  onChange={(e) =>
+                                    updateJob(job.id, {
+                                      description: e.target.value,
+                                    })
+                                  }
+                                  rows={2}
+                                  maxLength={1000}
+                                  placeholder="Anything people should know before claiming"
+                                  className={inputClass}
+                                />
+                              </Field>
+
+                              <div className="flex items-center justify-between gap-3">
+                                <span className="text-sm text-muted">
+                                  Slots needed
+                                </span>
+                                <Stepper
+                                  label={`Slots needed for job ${i + 1}`}
+                                  value={job.capacity}
+                                  onChange={(v) =>
+                                    updateJob(job.id, { capacity: v })
+                                  }
+                                />
+                              </div>
                             </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+            </div>
 
-          {jobError && (
-            <p role="alert" className="text-[13px] text-red-600 dark:text-red-400">
-              {jobError}
-            </p>
-          )}
+            {jobError && (
+              <p role="alert" className="text-[13px] text-red-600 dark:text-red-400">
+                {jobError}
+              </p>
+            )}
 
-          <button
-            type="button"
-            onClick={addJob}
-            className="h-12 rounded-2xl border border-dashed border-border text-foreground/80 transition hover:bg-foreground/5 active:scale-[0.99]"
-          >
-            + Add another job
-          </button>
-        </Section>
+            <button
+              type="button"
+              onClick={addJob}
+              className="h-12 rounded-2xl border border-dashed border-border text-foreground/80 transition hover:bg-foreground/5 active:scale-[0.99]"
+            >
+              + Add another job
+            </button>
+          </Section>
+        )}
 
         <Section
           step={3}

@@ -8,7 +8,10 @@ import { browserZone } from "@/lib/dates";
 
 type Props = {
   token: string;
-  jobCount: number;
+  /** What carries over: "3 jobs", or "the same 12 names and 3 columns". */
+  shapeLabel: string;
+  /** What starts fresh: "Signups" or "Ticks and notes". */
+  freshLabel: string;
   hasFund: boolean;
 };
 
@@ -16,7 +19,12 @@ type Props = {
  * A meal team runs the same rota every month. Without this, that's a full
  * re-entry every time.
  */
-export function DuplicateEventCard({ token, jobCount, hasFund }: Props) {
+export function DuplicateEventCard({
+  token,
+  shapeLabel,
+  freshLabel,
+  hasFund,
+}: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [eventAt, setEventAt] = useState<Date | null>(null);
@@ -60,9 +68,8 @@ export function DuplicateEventCard({ token, jobCount, hasFund }: Props) {
     >
       <p className="text-[15px] font-medium">Run this again</p>
       <p className="text-[13px] leading-[1.5] text-muted">
-        Creates a new event with the same details and{" "}
-        {jobCount === 1 ? "job" : `${jobCount} jobs`}
-        {hasFund ? ", and the same payment details" : ""}. Signups
+        Creates a new event with the same details and {shapeLabel}
+        {hasFund ? ", and the same payment details" : ""}. {freshLabel}
         {hasFund ? ", payments and amounts" : ""} start fresh, and you&rsquo;ll
         get a new link to share.
       </p>

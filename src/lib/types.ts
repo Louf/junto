@@ -1,6 +1,10 @@
+export type EventKind = "slots" | "sheet";
+
 export type EventRow = {
   id: string;
   created_at: string;
+  /** Jobs with limited slots, or a contribution sheet of names × columns. */
+  kind: EventKind;
   name: string;
   description: string | null;
   event_at: string;
@@ -73,8 +77,33 @@ export type FundWithContributions = FundRow & {
   contributions: ContributionRow[];
 };
 
+export type SheetColumnRow = {
+  id: string;
+  created_at: string;
+  event_id: string;
+  label: string;
+  sort_order: number;
+};
+
+export type SheetRowRow = {
+  id: string;
+  created_at: string;
+  event_id: string;
+  name: string;
+  note: string | null;
+  /** Added from the public page rather than by the organizer. */
+  self_added: boolean;
+  sort_order: number;
+};
+
+/** A row with the ids of the columns it has ticked. */
+export type SheetRowWithTicks = SheetRowRow & { ticks: string[] };
+
 export type JobWithSignups = JobRow & { signups: SignupRow[] };
 export type EventWithJobs = EventRow & {
   jobs: JobWithSignups[];
   fund: FundWithContributions | null;
+  /** Empty for a slots event. */
+  sheet_columns: SheetColumnRow[];
+  sheet_rows: SheetRowWithTicks[];
 };

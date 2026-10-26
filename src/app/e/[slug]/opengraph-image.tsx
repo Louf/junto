@@ -38,15 +38,26 @@ export default async function Image({
   const capacity = ev?.jobs.reduce((n, j) => n + j.capacity, 0) ?? 0;
   const filled = ev?.jobs.reduce((n, j) => n + j.signups.length, 0) ?? 0;
   const remaining = Math.max(0, capacity - filled);
-  const pct = capacity > 0 ? Math.round((filled / capacity) * 100) : 0;
+
+  const people = ev?.sheet_rows.length ?? 0;
+  const pitchedIn = ev?.sheet_rows.filter((r) => r.ticks.length > 0).length ?? 0;
 
   const status = cancelled
     ? "Cancelled"
-    : capacity === 0
-      ? ""
-      : remaining === 0
-        ? "Every slot filled"
-        : `${remaining} of ${capacity} slots still open`;
+    : ev?.kind === "sheet"
+      ? people === 0
+        ? ""
+        : `${pitchedIn} of ${people} have said how they’ll help`
+      : capacity === 0
+        ? ""
+        : remaining === 0
+          ? "Every slot filled"
+          : `${remaining} of ${capacity} slots still open`;
+
+  // The bar tracks slots filled, or for a sheet, people who've ticked something.
+  const [done, total] =
+    ev?.kind === "sheet" ? [pitchedIn, people] : [filled, capacity];
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
   return new ImageResponse(
     (
@@ -119,7 +130,7 @@ export default async function Image({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {capacity > 0 && !cancelled && (
+          {total > 0 && !cancelled && (
             <div
               style={{
                 display: "flex",

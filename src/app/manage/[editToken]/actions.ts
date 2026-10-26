@@ -19,6 +19,15 @@ import {
   normalizeHandle,
   parseAmountToCents,
 } from "@/lib/payments";
+import {
+  MAX_COLUMNS,
+  MAX_ROWS,
+  cleanLabel,
+  cleanName,
+  nameKey,
+  parseNames,
+} from "@/lib/sheet";
+import { announceSheetChange } from "@/lib/sheetLive";
 
 async function eventForToken(token: string) {
   const supa = supabaseService();
@@ -100,6 +109,7 @@ export async function updateEvent(token: string, formData: FormData) {
 
   revalidatePath(`/manage/${token}`);
   revalidatePath(`/e/${ev.slug}`);
+  announceSheetChange(ev.id);
   return { ok: true } as const;
 }
 
@@ -177,6 +187,184 @@ export async function removeSignup(token: string, signupId: string) {
   revalidatePath(`/manage/${token}`);
   revalidatePath(`/e/${ev.slug}`);
   return { ok: true } as const;
+}
+
+// =====================
+// Contribution sheet
+// =====================
+
+type Result = { ok: true } | { ok: false; error: string };
+
+async function sheetForToken(token: string) {
+  const supa = supabaseService();
+  const { data } = await supa
+    .from("events")
+    .select("id, slug, kind")
+    .eq("edit_token", token)
+    .maybeSingle();
+  return data?.kind === "sheet" ? { id: data.id, slug: data.slug } : null;
+}
+
+function refresh(token: string, ev: { id: string; slug: string }) {
+  revalidatePath(`/manage/${token}`);
+  revalidatePath(`/e/${ev.slug}`);
+  announceSheetChange(ev.id);
+}
+
+export async function addSheetColumn(token: string, label: string): Promise<Result> {
+  const ev = await sheetForToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" };
+  const clean = cleanLabel(label);
+  if (!clean) return { ok: false, error: "Name the column" };
+
+  const supa = supabaseService();
+  const { data: existing } = await supa
+    .from("sheet_columns")
+    .select("label, sort_order")
+    .eq("event_id", ev.id);
+  const cols = existing ?? [];
+  if (cols.length >= MAX_COLUMNS) {
+    return { ok: false, error: `Up to ${MAX_COLUMNS} columns` };
+  }
+  if (cols.some((c) => c.label.toLocaleLowerCase() === clean.toLocaleLowerCase())) {
+    return { ok: false, error: `There's already a "${clean}" column` };
+  }
+
+  const { error } = await supa.from("sheet_columns").insert({
+    event_id: ev.id,
+    label: clean,
+    sort_order: cols.reduce((m, c) => Math.max(m, c.sort_order), -1) + 1,
+  });
+  if (error) return { ok: false, error: error.message };
+  refresh(token, ev);
+  return { ok: true };
+}
+
+export async function renameSheetColumn(
+  token: string,
+  columnId: string,
+  label: string,
+): Promise<Result> {
+  const ev = await sheetForToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" };
+  const clean = cleanLabel(label);
+  if (!clean) return { ok: false, error: "A column needs a name" };
+
+  const supa = supabaseService();
+  const { error } = await supa
+    .from("sheet_columns")
+    .update({ label: clean })
+    .eq("id", columnId)
+    .eq("event_id", ev.id);
+  if (error) return { ok: false, error: error.message };
+  refresh(token, ev);
+  return { ok: true };
+}
+
+/** Also clears every tick in the column — the UI says so before asking. */
+export async function removeSheetColumn(
+  token: string,
+  columnId: string,
+): Promise<Result> {
+  const ev = await sheetForToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" };
+
+  const supa = supabaseService();
+  const { count } = await supa
+    .from("sheet_columns")
+    .select("id", { count: "exact", head: true })
+    .eq("event_id", ev.id);
+  if ((count ?? 0) <= 1) {
+    return { ok: false, error: "A sheet needs at least one column" };
+  }
+
+  const { error } = await supa
+    .from("sheet_columns")
+    .delete()
+    .eq("id", columnId)
+    .eq("event_id", ev.id);
+  if (error) return { ok: false, error: error.message };
+  refresh(token, ev);
+  return { ok: true };
+}
+
+/** Bulk add: a pasted list, skipping anyone already on the sheet. */
+export async function addSheetNames(
+  token: string,
+  text: string,
+): Promise<Result & { added?: number; skipped?: number }> {
+  const ev = await sheetForToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" };
+
+  const supa = supabaseService();
+  const { data: existing } = await supa
+    .from("sheet_rows")
+    .select("name, sort_order")
+    .eq("event_id", ev.id);
+  const rows = existing ?? [];
+
+  const all = parseNames(text);
+  const fresh = parseNames(text, rows.map((r) => r.name));
+  if (all.length === 0) return { ok: false, error: "Add at least one name" };
+  if (rows.length + fresh.length > MAX_ROWS) {
+    return { ok: false, error: `Up to ${MAX_ROWS} names per sheet` };
+  }
+
+  if (fresh.length > 0) {
+    const start = rows.reduce((m, r) => Math.max(m, r.sort_order), -1) + 1;
+    const { error } = await supa.from("sheet_rows").insert(
+      fresh.map((name, i) => ({ event_id: ev.id, name, sort_order: start + i })),
+    );
+    if (error) return { ok: false, error: error.message };
+  }
+
+  refresh(token, ev);
+  return { ok: true, added: fresh.length, skipped: all.length - fresh.length };
+}
+
+export async function renameSheetRow(
+  token: string,
+  rowId: string,
+  name: string,
+): Promise<Result> {
+  const ev = await sheetForToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" };
+  const clean = cleanName(name);
+  if (!clean) return { ok: false, error: "A name can't be blank" };
+
+  const supa = supabaseService();
+  const { data: others } = await supa
+    .from("sheet_rows")
+    .select("id, name")
+    .eq("event_id", ev.id)
+    .neq("id", rowId);
+  if ((others ?? []).some((r) => nameKey(r.name) === nameKey(clean))) {
+    return { ok: false, error: `${clean} is already on the sheet` };
+  }
+
+  const { error } = await supa
+    .from("sheet_rows")
+    .update({ name: clean })
+    .eq("id", rowId)
+    .eq("event_id", ev.id);
+  if (error) return { ok: false, error: error.message };
+  refresh(token, ev);
+  return { ok: true };
+}
+
+export async function removeSheetRow(token: string, rowId: string): Promise<Result> {
+  const ev = await sheetForToken(token);
+  if (!ev) return { ok: false, error: "Invalid link" };
+
+  const supa = supabaseService();
+  const { error } = await supa
+    .from("sheet_rows")
+    .delete()
+    .eq("id", rowId)
+    .eq("event_id", ev.id);
+  if (error) return { ok: false, error: error.message };
+  refresh(token, ev);
+  return { ok: true };
 }
 
 // =====================
@@ -360,6 +548,7 @@ export async function cancelEvent(token: string, formData: FormData) {
 
   revalidatePath(`/manage/${token}`);
   revalidatePath(`/e/${ev.slug}`);
+  announceSheetChange(ev.id);
 
   if (alreadyCancelled) return { ok: true, sent: 0, failed: 0 } as const;
 
@@ -409,6 +598,7 @@ export async function restoreEvent(token: string) {
 
   revalidatePath(`/manage/${token}`);
   revalidatePath(`/e/${ev.slug}`);
+  announceSheetChange(ev.id);
   return { ok: true } as const;
 }
 
@@ -456,6 +646,7 @@ export async function duplicateEvent(token: string, formData: FormData) {
   const { data: created, error: insertErr } = await supa
     .from("events")
     .insert({
+      kind: ev.kind,
       name: ev.name,
       description: ev.description,
       location: ev.location,
@@ -490,6 +681,34 @@ export async function duplicateEvent(token: string, formData: FormData) {
     if (jobsErr) {
       await supa.from("events").delete().eq("id", created.id);
       return { ok: false, error: `Could not copy jobs: ${jobsErr.message}` } as const;
+    }
+  }
+
+  // Same people and columns; nobody has ticked anything yet, and last
+  // time's notes ("bringing lasagna") don't apply.
+  if (ev.kind === "sheet") {
+    const { error: colErr } = await supa.from("sheet_columns").insert(
+      ev.sheet_columns.map((c, i) => ({
+        event_id: created.id,
+        label: c.label,
+        sort_order: i,
+      })),
+    );
+    const { error: rowErr } = ev.sheet_rows.length
+      ? await supa.from("sheet_rows").insert(
+          ev.sheet_rows.map((r, i) => ({
+            event_id: created.id,
+            name: r.name,
+            sort_order: i,
+          })),
+        )
+      : { error: null };
+    if (colErr || rowErr) {
+      await supa.from("events").delete().eq("id", created.id);
+      return {
+        ok: false,
+        error: `Could not copy the sheet: ${(colErr ?? rowErr)?.message}`,
+      } as const;
     }
   }
 

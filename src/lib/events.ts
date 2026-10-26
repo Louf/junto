@@ -2,15 +2,18 @@ import { supabaseService } from "./supabase/service";
 import type { EventWithJobs } from "./types";
 
 const EVENT_SELECT =
-  "*, jobs:jobs(*, signups:signups(*)), fund:funds(*, contributions:contributions(*))";
+  "*, jobs:jobs(*, signups:signups(*)), fund:funds(*, contributions:contributions(*)), sheet_columns:sheet_columns(*), sheet_rows:sheet_rows(*, ticks:sheet_ticks(column_id))";
 
 /**
  * Supabase returns embedded one-to-one relations as an array. Normalize the
  * fund to a single row (or null) and sort everything by its stable order.
  */
 function shape(data: unknown): EventWithJobs {
-  const ev = data as EventWithJobs & {
+  const ev = data as Omit<EventWithJobs, "sheet_rows"> & {
     fund: EventWithJobs["fund"] | EventWithJobs["fund"][];
+    sheet_rows: (Omit<EventWithJobs["sheet_rows"][number], "ticks"> & {
+      ticks: { column_id: string }[];
+    })[];
   };
 
   ev.fund = Array.isArray(ev.fund) ? (ev.fund[0] ?? null) : (ev.fund ?? null);
@@ -26,7 +29,22 @@ function shape(data: unknown): EventWithJobs {
     job.signups.sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
-  return ev as EventWithJobs;
+  // Ties on sort_order (bulk-added names) fall back to the order they arrived.
+  const bySortThenAge = (
+    a: { sort_order: number; created_at: string },
+    b: { sort_order: number; created_at: string },
+  ) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at);
+
+  ev.sheet_columns = (ev.sheet_columns ?? []).sort(bySortThenAge);
+  const rows = (ev.sheet_rows ?? []).sort(bySortThenAge);
+
+  return {
+    ...ev,
+    sheet_rows: rows.map((r) => ({
+      ...r,
+      ticks: (r.ticks ?? []).map((t) => t.column_id),
+    })),
+  } as EventWithJobs;
 }
 
 export async function getEventBySlug(slug: string): Promise<EventWithJobs | null> {

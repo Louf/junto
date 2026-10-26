@@ -14,7 +14,9 @@ import {
 import { qrSvg } from "@/lib/qr";
 import { JobCard } from "./JobCard";
 import { FundCard } from "./FundCard";
+import { SheetTable } from "./SheetTable";
 import { ThemeMenu } from "@/components/ThemeMenu";
+import { SheetLive } from "@/components/SheetLive";
 
 export const revalidate = 0;
 
@@ -35,6 +37,14 @@ export async function generateMetadata({
   const capacity = ev.jobs.reduce((n, j) => n + j.capacity, 0);
   const filled = ev.jobs.reduce((n, j) => n + j.signups.length, 0);
   const remaining = Math.max(0, capacity - filled);
+  const pitchedIn = ev.sheet_rows.filter((r) => r.ticks.length > 0).length;
+
+  const status =
+    ev.kind === "sheet"
+      ? `${pitchedIn} of ${ev.sheet_rows.length} have said how they’ll help.`
+      : remaining === 0
+        ? "Every slot is filled."
+        : `${remaining} of ${capacity} slots still open.`;
 
   const title = ev.cancelled_at
     ? `Cancelled: ${ev.name}`
@@ -42,12 +52,7 @@ export async function generateMetadata({
 
   const description = ev.cancelled_at
     ? `This event has been cancelled. ${ev.cancel_reason ?? ""}`.trim()
-    : ev.description?.trim() ||
-      `${when}. ${
-        remaining === 0
-          ? "Every slot is filled."
-          : `${remaining} of ${capacity} slots still open.`
-      }`;
+    : ev.description?.trim() || `${when}. ${status}`;
 
   return {
     title,
@@ -116,8 +121,13 @@ export default async function EventPage({
   const raisedCents =
     fund?.contributions.reduce((n, c) => n + c.amount_cents, 0) ?? 0;
 
+  const isSheet = ev.kind === "sheet";
+
   return (
-    <main className="mx-auto w-full max-w-md pb-16">
+    // A sheet with several columns needs the room on a laptop.
+    <main
+      className={`mx-auto w-full max-w-md pb-16 ${isSheet ? "md:max-w-2xl" : ""}`}
+    >
       <div className="flex justify-end px-6 pt-4 pb-3">
         <ThemeMenu />
       </div>
@@ -221,32 +231,59 @@ export default async function EventPage({
         </section>
       )}
 
-      <section className="mt-8 px-6">
-        <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
-          Jobs
-        </h2>
-        {!cancelled && ev.jobs.some((j) => j.signups.length < j.capacity) && (
-          <p className="mt-1 text-[14px] text-muted">
-            Pick a job to sign up for it.
-          </p>
-        )}
-        <div className="mt-3 flex flex-col gap-3">
-          {ev.jobs.map((job) => (
-            <JobCard
-              key={job.id}
+      {isSheet ? (
+        <section className="mt-8 px-6">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
+            Who&rsquo;s helping
+          </h2>
+          {!cancelled && (
+            <p className="mt-1 text-[14px] text-muted">
+              Find your name and tick what you&rsquo;ll do.
+            </p>
+          )}
+          <SheetLive eventId={ev.id} />
+          <div className="mt-3">
+            <SheetTable
+              eventId={ev.id}
               closed={cancelled}
-              job={{
-                id: job.id,
-                title: job.title,
-                description: job.description,
-                capacity: job.capacity,
-                filled: job.signups.length,
-                signupNames: job.signups.map((s) => s.name),
-              }}
+              columns={ev.sheet_columns.map((c) => ({ id: c.id, label: c.label }))}
+              rows={ev.sheet_rows.map((r) => ({
+                id: r.id,
+                name: r.name,
+                note: r.note,
+                ticks: r.ticks,
+              }))}
             />
-          ))}
-        </div>
-      </section>
+          </div>
+        </section>
+      ) : (
+        <section className="mt-8 px-6">
+          <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
+            Jobs
+          </h2>
+          {!cancelled && ev.jobs.some((j) => j.signups.length < j.capacity) && (
+            <p className="mt-1 text-[14px] text-muted">
+              Pick a job to sign up for it.
+            </p>
+          )}
+          <div className="mt-3 flex flex-col gap-3">
+            {ev.jobs.map((job) => (
+              <JobCard
+                key={job.id}
+                closed={cancelled}
+                job={{
+                  id: job.id,
+                  title: job.title,
+                  description: job.description,
+                  capacity: job.capacity,
+                  filled: job.signups.length,
+                  signupNames: job.signups.map((s) => s.name),
+                }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
 
       <footer className="mt-12 px-6 text-center text-[13px] text-muted">
         Organized with{" "}

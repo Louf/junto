@@ -73,6 +73,8 @@ export default async function EventPage({
   if (!ev) notFound();
 
   const banner = bannerPublicUrl(ev.banner_path);
+  // The first card tucks up over a banner; without one it just starts the page.
+  const lead = banner ? "-mt-6" : "mt-6 md:mt-12";
 
   const cancelled = Boolean(ev.cancelled_at);
   const pledgeCount = ev.fund?.contributions.length ?? 0;
@@ -115,19 +117,17 @@ export default async function EventPage({
 
   return (
     <main className="mx-auto w-full max-w-md pb-16">
-      {banner ? (
+      {banner && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={banner}
           alt=""
           className="aspect-[16/9] w-full object-cover"
         />
-      ) : (
-        <div className="aspect-[16/9] w-full bg-gradient-to-br from-foreground/[0.06] to-foreground/[0.02]" />
       )}
 
       {cancelled && (
-        <div className="px-6 -mt-6">
+        <div className={`px-6 ${lead}`}>
           <div className="rounded-3xl border border-red-500/30 bg-red-500/10 p-6">
             <p className="text-[13px] font-semibold uppercase tracking-[0.12em] text-red-600 dark:text-red-400">
               Cancelled
@@ -158,7 +158,7 @@ export default async function EventPage({
         </div>
       )}
 
-      <div className={cancelled ? "mt-6 px-6" : "px-6 -mt-6"}>
+      <div className={cancelled ? "mt-6 px-6" : `px-6 ${lead}`}>
         <div className="rounded-3xl bg-card border border-border p-6 shadow-sm">
           <div className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
             {formatEventDate(ev.event_at, ev.event_tz, "dayOnly")} ·{" "}
@@ -221,6 +221,11 @@ export default async function EventPage({
         <h2 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-muted">
           Jobs
         </h2>
+        {!cancelled && ev.jobs.some((j) => j.signups.length < j.capacity) && (
+          <p className="mt-1 text-[14px] text-muted">
+            Pick a job to sign up for it.
+          </p>
+        )}
         <div className="mt-3 flex flex-col gap-3">
           {ev.jobs.map((job) => (
             <JobCard

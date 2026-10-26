@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { supabaseService } from "@/lib/supabase/service";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { newSlug, newToken } from "@/lib/ids";
 import { sendCreatorWelcome } from "@/lib/email";
 import { appUrl } from "@/lib/env";
@@ -38,11 +39,19 @@ export type CreateState =
   | { ok: true };
 
 export async function createEvent(_prev: unknown, formData: FormData): Promise<CreateState> {
+  // Signed in: the account owns the event and its email is the creator email,
+  // whatever the form says.
+  const {
+    data: { user },
+  } = await (await createSupabaseServerClient()).auth.getUser();
+
   const raw = {
     name: String(formData.get("name") ?? "").trim(),
     description: String(formData.get("description") ?? "").trim() || null,
     event_at: String(formData.get("event_at") ?? ""),
-    creator_email: String(formData.get("creator_email") ?? "").trim().toLowerCase(),
+    creator_email:
+      user?.email ??
+      String(formData.get("creator_email") ?? "").trim().toLowerCase(),
   };
 
   const parsed = formSchema.safeParse(raw);
@@ -139,6 +148,7 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
       duration_minutes,
       banner_path,
       creator_email: data.creator_email,
+      creator_user_id: user?.id ?? null,
       edit_token,
       slug,
     })
@@ -255,13 +265,17 @@ export async function createEvent(_prev: unknown, formData: FormData): Promise<C
   const shareUrl = `${appUrl()}/e/${slug}`;
   const manageUrl = `${appUrl()}/manage/${edit_token}`;
 
+  // Guests need the manage link emailed — it's their only way back. Signed-in
+  // organizers have the dashboard instead.
   // Fire and forget — don't fail the create if email errors.
-  sendCreatorWelcome({
-    to: data.creator_email,
-    eventName: data.name,
-    shareUrl,
-    manageUrl,
-  }).catch((e) => console.error("welcome email failed", e));
+  if (!user) {
+    sendCreatorWelcome({
+      to: data.creator_email,
+      eventName: data.name,
+      shareUrl,
+      manageUrl,
+    }).catch((e) => console.error("welcome email failed", e));
+  }
 
   redirect(`/manage/${edit_token}?welcome=1`);
 }

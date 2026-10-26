@@ -17,7 +17,7 @@ export default async function AuthErrorPage({
           : "The magic link may have expired or already been used."}
       </p>
       <Link
-        href="/recover"
+        href="/signin"
         className="mt-8 inline-flex h-12 items-center rounded-2xl bg-accent text-accent-fg px-6 text-[15px] font-semibold"
       >
         Try again

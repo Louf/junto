@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ThemeMenu } from "@/components/ThemeMenu";
+import { HeaderActions } from "@/components/HeaderActions";
 import { SheetLive } from "@/components/SheetLive";
 import { getEventByEditToken, bannerPublicUrl } from "@/lib/events";
 import { appUrl } from "@/lib/env";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { ShareCard } from "./ShareCard";
 import { AddJobForm } from "./AddJobForm";
 import { JobAdmin } from "./JobAdmin";
@@ -27,6 +28,11 @@ export default async function ManagePage({
   const ev = await getEventByEditToken(editToken);
   if (!ev) notFound();
 
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const shareUrl = `${appUrl()}/e/${ev.slug}`;
   const banner = bannerPublicUrl(ev.banner_path);
   const isSheet = ev.kind === "sheet";
@@ -48,7 +54,7 @@ export default async function ManagePage({
         >
           View public page →
         </Link>
-        <ThemeMenu />
+        <HeaderActions />
       </div>
 
       {ev.cancelled_at && (
@@ -60,8 +66,24 @@ export default async function ManagePage({
 
       {welcome && !ev.cancelled_at && (
         <div className="mt-4 rounded-2xl bg-success/15 text-success px-4 py-3 text-sm">
-          Your event is live. Bookmark this page — it&rsquo;s how you&rsquo;ll
-          edit later{isSheet ? " and change the sheet" : ", add jobs, and collect money if the event needs any"}.
+          {user ? (
+            <>
+              Your event is live, and it&rsquo;s saved to{" "}
+              <Link href="/me" className="font-medium underline underline-offset-2">
+                Your events
+              </Link>
+              .
+            </>
+          ) : (
+            <>
+              Your event is live. Bookmark this page — it&rsquo;s how
+              you&rsquo;ll edit later
+              {isSheet
+                ? " and change the sheet"
+                : ", add jobs, and collect money if the event needs any"}
+              .
+            </>
+          )}
         </div>
       )}
 
@@ -84,6 +106,21 @@ export default async function ManagePage({
       <div className="mt-6">
         <ShareCard shareUrl={shareUrl} />
       </div>
+
+      {!user && (
+        // The secret link works, but it's easy to lose; an account isn't.
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3">
+          <p className="text-[14px] leading-snug text-foreground/80">
+            Keep this with your other events, no bookmark needed.
+          </p>
+          <Link
+            href={`/signin?next=${encodeURIComponent(`/manage/${editToken}`)}`}
+            className="h-9 shrink-0 rounded-xl bg-foreground/[0.06] px-3 text-[13px] font-medium leading-9 transition hover:bg-foreground/10"
+          >
+            Sign in to save
+          </Link>
+        </div>
+      )}
 
       {!isSheet && (
         <section className="mt-8">

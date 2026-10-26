@@ -18,7 +18,7 @@ import { SheetTable } from "./SheetTable";
 import { AddToCalendar } from "./AddToCalendar";
 import { googleCalendarUrl } from "@/lib/ics";
 import { appUrl } from "@/lib/env";
-import { ThemeMenu } from "@/components/ThemeMenu";
+import { HeaderActions } from "@/components/HeaderActions";
 import { SheetLive } from "@/components/SheetLive";
 
 export const revalidate = 0;
@@ -133,7 +133,7 @@ export default async function EventPage({
       className={`mx-auto w-full max-w-md pb-16 ${isSheet ? "md:max-w-2xl" : ""}`}
     >
       <div className="flex justify-end px-6 pt-4 pb-3">
-        <ThemeMenu />
+        <HeaderActions hideSignInWhenSignedOut />
       </div>
       {banner && (
         // eslint-disable-next-line @next/next/no-img-element

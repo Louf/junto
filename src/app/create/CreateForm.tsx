@@ -8,6 +8,7 @@ import {
   useTransition,
 } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import Link from "next/link";
 import { nanoid } from "nanoid";
 import { format } from "date-fns";
 import { createEvent, type CreateState } from "./actions";
@@ -89,7 +90,12 @@ const KIND_OPTIONS: { value: EventKind; label: string; hint: string }[] = [
   },
 ];
 
-export function CreateForm() {
+export function CreateForm({
+  signedInEmail,
+}: {
+  /** Set when signed in: the event is saved to that account instead. */
+  signedInEmail: string | null;
+}) {
   const [kind, setKind] = useState<EventKind>("slots");
   const [columns, setColumns] = useState<ColumnDraft[]>(INITIAL_COLUMNS);
   const [namesText, setNamesText] = useState("");
@@ -891,21 +897,41 @@ export function CreateForm() {
           </Section>
         )}
 
-        <Section
-          step={kind === "slots" ? 4 : 3}
-          title="Your email"
-          subtitle="We'll email you a link to manage this event. No account, no password."
-        >
-          <Field label="Email">
-            <input
-              name="creator_email"
-              type="email"
-              required
-              placeholder="you@example.com"
-              className={inputClass}
-            />
-          </Field>
-        </Section>
+        {signedInEmail ? (
+          <p className="-mt-3 text-[13px] text-muted">
+            Saving to your account ({signedInEmail}). It&rsquo;ll be on{" "}
+            <Link href="/me" className="underline underline-offset-2">
+              Your events
+            </Link>
+            .
+          </p>
+        ) : (
+          <Section
+            step={kind === "slots" ? 4 : 3}
+            title="Your email"
+            subtitle="We'll email you a link to manage this event. No account, no password."
+          >
+            <Field label="Email">
+              <input
+                name="creator_email"
+                type="email"
+                required
+                placeholder="you@example.com"
+                className={inputClass}
+              />
+            </Field>
+            <p className="text-[13px] text-muted">
+              Running more than one?{" "}
+              <Link
+                href="/signin?next=/create"
+                className="underline underline-offset-2"
+              >
+                Sign in
+              </Link>{" "}
+              to keep them all in one place.
+            </p>
+          </Section>
+        )}
 
         {/* Preview on small screens, opt-in so it never buries the form. */}
         {kind === "slots" && (

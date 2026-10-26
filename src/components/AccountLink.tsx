@@ -29,8 +29,8 @@ export function AccountLink() {
   }, []);
 
   return (
-    <Link href={signedIn ? "/me" : "/recover"} className={CLASS}>
-      {signedIn ? "Your events" : "Find my events"}
+    <Link href={signedIn ? "/me" : "/signin"} className={CLASS}>
+      {signedIn ? "Your events" : "Sign in"}
     </Link>
   );
 }

@@ -13,7 +13,6 @@ import { format } from "date-fns";
 import { createEvent, type CreateState } from "./actions";
 import { DateTimePicker } from "@/components/DateTimePicker";
 import { EventCardPreview } from "@/components/EventCardPreview";
-import { SheetPreview } from "@/components/SheetPreview";
 import { PaymentIcon } from "@/components/PaymentIcon";
 import {
   DEFAULT_DURATION_MINUTES,
@@ -308,36 +307,32 @@ export function CreateForm() {
   const totalSlots = jobs.reduce((n, j) => n + j.capacity, 0);
   const parsedNames = parseNames(namesText);
 
-  const previewCard =
-    kind === "sheet" ? (
-      <SheetPreview
-        title={name.trim() || "Your event"}
-        titleIsPlaceholder={!name.trim()}
-        dateLabel={eventAt ? format(eventAt, "MMM d, h:mm a") : null}
-        columns={columns.map((c) => c.label.trim()).filter(Boolean)}
-        names={parsedNames}
-        ariaLabel="Live preview of the contribution sheet you're creating."
-      />
-    ) : (
-      <EventCardPreview
-        title={name.trim() || "Your event"}
-        titleIsPlaceholder={!name.trim()}
-        dateLabel={eventAt ? format(eventAt, "MMM d, h:mm a") : null}
-        jobs={jobs.map((j) => ({
-          id: j.id,
-          title: j.title.trim(),
-          capacity: j.capacity,
-          filled: 0,
-        }))}
-        summary={`${totalSlots} ${totalSlots === 1 ? "slot" : "slots"} across ${
-          jobs.length
-        } ${jobs.length === 1 ? "job" : "jobs"}`}
-        ariaLabel="Live preview of the event you're creating."
-      />
-    );
+  const previewCard = (
+    <EventCardPreview
+      title={name.trim() || "Your event"}
+      titleIsPlaceholder={!name.trim()}
+      dateLabel={eventAt ? format(eventAt, "MMM d, h:mm a") : null}
+      jobs={jobs.map((j) => ({
+        id: j.id,
+        title: j.title.trim(),
+        capacity: j.capacity,
+        filled: 0,
+      }))}
+      summary={`${totalSlots} ${totalSlots === 1 ? "slot" : "slots"} across ${
+        jobs.length
+      } ${jobs.length === 1 ? "job" : "jobs"}`}
+      ariaLabel="Live preview of the event you're creating."
+    />
+  );
 
   return (
-    <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-14">
+    <div
+      className={
+        kind === "slots"
+          ? "grid gap-12 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-14"
+          : "max-w-xl"
+      }
+    >
       <form
         onSubmit={onSubmit}
         onInput={() => setDirty(true)}
@@ -432,54 +427,60 @@ export function CreateForm() {
             )}
           </div>
 
-          <Field label="Where">
-            <input
-              name="location"
-              maxLength={200}
-              placeholder="Church hall, 12 Oak Street"
-              className={inputClass}
-            />
-          </Field>
+          {/* Logistics for strangers turning up. A sheet is for a team that
+              already knows where and when, so it skips them. */}
+          {kind === "slots" && (
+            <>
+              <Field label="Where">
+                <input
+                  name="location"
+                  maxLength={200}
+                  placeholder="Church hall, 12 Oak Street"
+                  className={inputClass}
+                />
+              </Field>
 
-          <Field label="How long">
-            <select
-              name="duration_minutes"
-              defaultValue={DEFAULT_DURATION_MINUTES}
-              className={inputClass}
-            >
-              {DURATION_OPTIONS.map((o) => (
-                <option key={o.minutes} value={o.minutes}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </Field>
+              <Field label="How long">
+                <select
+                  name="duration_minutes"
+                  defaultValue={DEFAULT_DURATION_MINUTES}
+                  className={inputClass}
+                >
+                  {DURATION_OPTIONS.map((o) => (
+                    <option key={o.minutes} value={o.minutes}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
 
-          <Field label="Banner image" optional>
-            <input
-              name="banner"
-              type="file"
-              accept="image/*"
-              onChange={onBannerChange}
-              className="block w-full text-sm text-foreground/80 file:mr-3 file:rounded-xl file:border-0 file:bg-foreground/5 file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-foreground/10"
-            />
-            {bannerError && (
-              <p
-                role="alert"
-                className="text-[13px] text-red-600 dark:text-red-400"
-              >
-                {bannerError}
-              </p>
-            )}
-            {bannerPreview && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={bannerPreview}
-                alt="Banner preview"
-                className="mt-1 aspect-[16/9] w-full rounded-xl object-cover"
-              />
-            )}
-          </Field>
+              <Field label="Banner image" optional>
+                <input
+                  name="banner"
+                  type="file"
+                  accept="image/*"
+                  onChange={onBannerChange}
+                  className="block w-full text-sm text-foreground/80 file:mr-3 file:rounded-xl file:border-0 file:bg-foreground/5 file:px-3 file:py-2 file:text-sm file:font-medium hover:file:bg-foreground/10"
+                />
+                {bannerError && (
+                  <p
+                    role="alert"
+                    className="text-[13px] text-red-600 dark:text-red-400"
+                  >
+                    {bannerError}
+                  </p>
+                )}
+                {bannerPreview && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={bannerPreview}
+                    alt="Banner preview"
+                    className="mt-1 aspect-[16/9] w-full rounded-xl object-cover"
+                  />
+                )}
+              </Field>
+            </>
+          )}
         </Section>
 
         {kind === "sheet" ? (
@@ -904,48 +905,50 @@ export function CreateForm() {
         </Section>
 
         {/* Preview on small screens, opt-in so it never buries the form. */}
-        <div className="lg:hidden">
-          <button
-            type="button"
-            onClick={() => setShowMobilePreview((v) => !v)}
-            aria-expanded={showMobilePreview}
-            aria-controls="mobile-preview"
-            className="flex min-h-11 w-full items-center justify-between rounded-2xl border border-dashed border-border px-4 text-left text-[14px] text-foreground/80 transition active:scale-[0.99]"
-          >
-            {showMobilePreview ? "Hide preview" : "Preview what people will see"}
-            <svg
-              viewBox="0 0 20 20"
-              aria-hidden
-              className={`size-4 shrink-0 text-muted transition-transform duration-200 ${
-                showMobilePreview ? "rotate-180" : ""
-              }`}
+        {kind === "slots" && (
+          <div className="lg:hidden">
+            <button
+              type="button"
+              onClick={() => setShowMobilePreview((v) => !v)}
+              aria-expanded={showMobilePreview}
+              aria-controls="mobile-preview"
+              className="flex min-h-11 w-full items-center justify-between rounded-2xl border border-dashed border-border px-4 text-left text-[14px] text-foreground/80 transition active:scale-[0.99]"
             >
-              <path
-                d="M5 7.5L10 12.5L15 7.5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
-
-          <AnimatePresence initial={false}>
-            {showMobilePreview && (
-              <motion.div
-                id="mobile-preview"
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={panelTransition}
-                className="overflow-hidden"
+              {showMobilePreview ? "Hide preview" : "Preview what people will see"}
+              <svg
+                viewBox="0 0 20 20"
+                aria-hidden
+                className={`size-4 shrink-0 text-muted transition-transform duration-200 ${
+                  showMobilePreview ? "rotate-180" : ""
+                }`}
               >
-                <div className="pt-3">{previewCard}</div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                <path
+                  d="M5 7.5L10 12.5L15 7.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.75"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+
+            <AnimatePresence initial={false}>
+              {showMobilePreview && (
+                <motion.div
+                  id="mobile-preview"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={panelTransition}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-3">{previewCard}</div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
 
         {state && !state.ok && (
           <div
@@ -970,17 +973,19 @@ export function CreateForm() {
       </form>
 
       {/* Live preview — sticky alongside the form on desktop. */}
-      <aside className="hidden lg:block">
-        <div className="sticky top-12 flex flex-col gap-3">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
-            Preview
-          </p>
-          {previewCard}
-          <p className="text-[12.5px] leading-[1.5] text-muted/70">
-            This is what people will see when you share your link.
-          </p>
-        </div>
-      </aside>
+      {kind === "slots" && (
+        <aside className="hidden lg:block">
+          <div className="sticky top-12 flex flex-col gap-3">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-muted">
+              Preview
+            </p>
+            {previewCard}
+            <p className="text-[12.5px] leading-[1.5] text-muted/70">
+              This is what people will see when you share your link.
+            </p>
+          </div>
+        </aside>
+      )}
     </div>
   );
 }

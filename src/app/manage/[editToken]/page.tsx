@@ -78,6 +78,7 @@ export default async function ManagePage({
             duration_minutes: ev.duration_minutes,
           }}
           bannerUrl={banner}
+          isSheet={isSheet}
         />
       </div>
 

@@ -14,8 +14,11 @@ export function EditEventCard({
   token,
   initial,
   bannerUrl,
+  isSheet = false,
 }: {
   token: string;
+  /** A sheet's team already knows where and when — no place, length or banner. */
+  isSheet?: boolean;
   initial: {
     name: string;
     description: string | null;
@@ -120,42 +123,46 @@ export function EditEventCard({
         <span className="text-sm font-medium">Date &amp; time</span>
         <DateTimePicker value={eventAt} onChange={setEventAt} />
       </label>
-      <label className="flex flex-col gap-2">
-        <span className="text-sm font-medium">Where</span>
-        <input
-          name="location"
-          defaultValue={initial.location ?? ""}
-          maxLength={200}
-          placeholder="Church hall, 12 Oak Street"
-          className="w-full rounded-xl bg-foreground/[0.05] px-4 py-3 text-[16px] outline-none"
-        />
-      </label>
-      <label className="flex flex-col gap-2">
-        <span className="text-sm font-medium">How long</span>
-        <select
-          name="duration_minutes"
-          defaultValue={initial.duration_minutes ?? DEFAULT_DURATION_MINUTES}
-          className="w-full rounded-xl bg-foreground/[0.05] px-4 py-3 text-[16px] outline-none"
-        >
-          {DURATION_OPTIONS.map((o) => (
-            <option key={o.minutes} value={o.minutes}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="flex flex-col gap-2">
-        <span className="text-sm font-medium">
-          Replace banner{" "}
-          <span className="text-muted font-normal">· optional</span>
-        </span>
-        <input
-          name="banner"
-          type="file"
-          accept="image/*"
-          className="block w-full text-sm text-foreground/80 file:mr-3 file:rounded-xl file:border-0 file:bg-foreground/5 file:px-3 file:py-2 file:text-sm file:font-medium"
-        />
-      </label>
+      {!isSheet && (
+        <>
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium">Where</span>
+            <input
+              name="location"
+              defaultValue={initial.location ?? ""}
+              maxLength={200}
+              placeholder="Church hall, 12 Oak Street"
+              className="w-full rounded-xl bg-foreground/[0.05] px-4 py-3 text-[16px] outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium">How long</span>
+            <select
+              name="duration_minutes"
+              defaultValue={initial.duration_minutes ?? DEFAULT_DURATION_MINUTES}
+              className="w-full rounded-xl bg-foreground/[0.05] px-4 py-3 text-[16px] outline-none"
+            >
+              {DURATION_OPTIONS.map((o) => (
+                <option key={o.minutes} value={o.minutes}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium">
+              Replace banner{" "}
+              <span className="text-muted font-normal">· optional</span>
+            </span>
+            <input
+              name="banner"
+              type="file"
+              accept="image/*"
+              className="block w-full text-sm text-foreground/80 file:mr-3 file:rounded-xl file:border-0 file:bg-foreground/5 file:px-3 file:py-2 file:text-sm file:font-medium"
+            />
+          </label>
+        </>
+      )}
 
       {error && (
         <div className="text-sm text-red-600 dark:text-red-400">{error}</div>

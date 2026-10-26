@@ -74,7 +74,8 @@ export function SheetTable({
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<string | null>(null);
-
+  // Phone layout: one person's options open at a time.
+  const [openRow, setOpenRow] = useState<string | null>(null);
 
   const q = nameKey(query);
   const visible = q ? shown.filter((r) => nameKey(r.name).includes(q)) : shown;
@@ -125,50 +126,105 @@ export function SheetTable({
         </div>
       )}
 
-      {/* Too wide for a phone: one card per person instead, every option visible. */}
+      {/* Too wide for a phone: a list of names instead, each opening to its
+          options. Collapsed, it's one line per person, which keeps a long
+          team short to scroll. */}
       {!fitsPhone(columns) && (
         <div className="sm:hidden">
           <ul>
-            {visible.map((row) => (
-              <li
-                key={row.id}
-                className={`border-t border-border px-4 py-3 transition-shadow first:border-t-0 ${
-                  outstanding(row, closed) ? OUTSTANDING : ""
-                }`}
-              >
-                <span className="block text-[15px] font-medium leading-snug break-words">
-                  {row.name}
-                  <Outstanding row={row} closed={closed} />
-                </span>
-                <NoteLine
-                  row={row}
-                  closed={closed}
-                  onEdit={() => setEditing(row.id)}
-                />
-                <div className="mt-2.5 flex flex-wrap gap-1.5">
-                  {columns.map((c) => (
-                    <TickChip
-                      key={c.id}
-                      label={c.label}
-                      name={row.name}
-                      checked={row.ticks.includes(c.id)}
-                      disabled={closed}
-                      onChange={(v) => toggle(row, c, v)}
-                    />
-                  ))}
-                </div>
-                {editing === row.id && (
-                  <div className="mt-3">
-                    <NoteEditor
-                      name={row.name}
-                      initial={row.note ?? ""}
-                      onSave={(n) => saveNote(row, n)}
-                      onCancel={() => setEditing(null)}
-                    />
-                  </div>
-                )}
-              </li>
-            ))}
+            {visible.map((row) => {
+              const open = openRow === row.id;
+              const ticked = columns.filter((c) => row.ticks.includes(c.id));
+              const panelId = `sheet-row-${row.id}`;
+              return (
+                <li
+                  key={row.id}
+                  className={`border-t border-border transition-shadow first:border-t-0 ${
+                    outstanding(row, closed) ? OUTSTANDING : ""
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenRow(open ? null : row.id)}
+                    aria-expanded={open}
+                    aria-controls={panelId}
+                    className="flex min-h-14 w-full items-center gap-3 px-4 py-3 text-left"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-medium leading-snug break-words">
+                        {row.name}
+                      </span>
+                      {!open && row.note && (
+                        <span className="mt-0.5 block truncate text-[13px] text-muted">
+                          {row.note}
+                        </span>
+                      )}
+                    </span>
+                    <span
+                      className={`max-w-[45%] shrink-0 truncate text-[13px] ${
+                        outstanding(row, closed)
+                          ? "font-medium text-red-600 dark:text-red-400"
+                          : "text-muted"
+                      }`}
+                    >
+                      {ticked.length > 0
+                        ? ticked.map((c) => c.label).join(" · ")
+                        : closed
+                          ? "—"
+                          : "Not yet"}
+                    </span>
+                    <svg
+                      viewBox="0 0 20 20"
+                      aria-hidden
+                      className={`size-4 shrink-0 text-muted transition-transform duration-200 ${
+                        open ? "rotate-180" : ""
+                      }`}
+                    >
+                      <path
+                        d="M5 7.5L10 12.5L15 7.5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.75"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+
+                  {open && (
+                    <div id={panelId} className="-mt-1 px-4 pb-3.5">
+                      <NoteLine
+                        row={row}
+                        closed={closed}
+                        onEdit={() => setEditing(row.id)}
+                      />
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {columns.map((c) => (
+                          <TickChip
+                            key={c.id}
+                            label={c.label}
+                            name={row.name}
+                            checked={row.ticks.includes(c.id)}
+                            disabled={closed}
+                            onChange={(v) => toggle(row, c, v)}
+                          />
+                        ))}
+                      </div>
+                      {editing === row.id && (
+                        <div className="mt-3">
+                          <NoteEditor
+                            name={row.name}
+                            initial={row.note ?? ""}
+                            onSave={(n) => saveNote(row, n)}
+                            onCancel={() => setEditing(null)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
